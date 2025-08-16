@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
+import { apiClient } from "@/lib/api/client";
 
 interface ContractSkillForm {
     recipient_address: string;  // address recipient
@@ -84,6 +85,8 @@ export function ContractCreateSkillDialog({
         metadata: "",
         uri: ""
     });
+    const [success, setSuccess] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     // Auto-populate recipient address when user connects
     useEffect(() => {
@@ -98,60 +101,53 @@ export function ContractCreateSkillDialog({
             return;
         }
 
-        if (!formData.category || !formData.subcategory || formData.level < 1 || formData.level > 10) {
-            alert("Please fill in all required fields correctly (category, subcategory, and valid level)");
+        if (!formData.category || !formData.recipient_address) {
+            alert("Please fill in all required fields");
             return;
         }
 
         setIsCreating(true);
+        setError(null);
+
         try {
-            // Generate IPFS URI based on skill data
-            const timestamp = Date.now();
-            const skillSlug = formData.category.toLowerCase().replace(/[^a-z0-9]/g, '-');
-            const uri = `ipfs://skill-${skillSlug}-${timestamp}-level-${formData.level}`;
-
-            const contractData: ContractSkillForm = {
-                recipient_address: user.accountId,
-                category: formData.category,
-                subcategory: formData.subcategory,
+            // Create skill token using the API client
+            const response = await apiClient.createSkillToken({
+                recipient_address: formData.recipient_address,
+                skill_name: formData.category,
+                skill_category: formData.subcategory || formData.category,
                 level: formData.level,
-                expiry_date: formData.expiry_date,
-                metadata: formData.metadata,
-                uri: uri
-            };
-
-            console.log('🎯 Contract-Perfect Skill Creation:', contractData);
-
-            // TODO: Implement actual smart contract call
-            // const result = await skillTokenContract.mintSkillToken(
-            //     contractData.recipient_address,
-            //     contractData.category, 
-            //     contractData.level,
-            //     contractData.uri
-            // );
-
-            // Simulate success
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            if (onSkillCreated) {
-                onSkillCreated(contractData);
-            }
-
-            // Reset and close
-            setFormData({
-                recipient_address: user.accountId,
-                category: "",
-                subcategory: "",
-                level: 1,
-                expiry_date: 0,
-                metadata: "",
-                uri: ""
+                description: formData.metadata,
+                metadata_uri: formData.uri
             });
-            setIsDialogOpen(false);
 
-        } catch (error) {
-            console.error('❌ Skill creation failed:', error);
-            alert('Failed to create skill token. Please try again.');
+            if (response.success) {
+                setSuccess(true);
+                setFormData({
+                    recipient_address: "",
+                    category: "",
+                    subcategory: "",
+                    level: 1,
+                    expiry_date: 0,
+                    metadata: "",
+                    uri: ""
+                });
+
+                // Call the callback to refresh the parent component
+                if (onSkillCreated) {
+                    onSkillCreated(response.data);
+                }
+
+                // Auto-close after success
+                setTimeout(() => {
+                    setIsDialogOpen(false);
+                    setSuccess(false);
+                }, 2000);
+            } else {
+                setError(response.error || "Failed to create skill token");
+            }
+        } catch (err) {
+            console.error("Error creating skill token:", err);
+            setError("Failed to create skill token. Please try again.");
         } finally {
             setIsCreating(false);
         }

@@ -41,6 +41,7 @@ import { useReputation, useSkillTokens } from "@/hooks/useDashboardData";
 import { useAuth } from "@/hooks/useAuth";
 import { dashboardApi } from "@/lib/api/dashboard-service";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/api/client";
 
 interface ReputationWidgetProps {
   className?: string;
@@ -95,32 +96,41 @@ export function ReputationWidget({ className }: ReputationWidgetProps) {
       const selectedSkill = skillTokens.find(s => s.tokenId.toString() === workSubmission.skillTokenId);
       if (!selectedSkill) throw new Error("Selected skill token not found");
 
-      const result = await dashboardApi.submitWorkEvaluation({
-        user_id: user?.accountId || "",
-        skill_token_id: parseInt(workSubmission.skillTokenId),
+      // Submit work evaluation using the API client
+      const response = await apiClient.submitEvaluation({
+        user: user?.accountId || "",
+        skill_token_ids: [parseInt(workSubmission.skillTokenId)],
         work_description: workSubmission.workDescription,
-        artifacts: workSubmission.artifacts,
-        self_assessment: workSubmission.selfAssessment
+        work_content: workSubmission.artifacts.join(", "),
+        overall_score: Object.values(workSubmission.selfAssessment).reduce((a, b) => a + b, 0) / Object.keys(workSubmission.selfAssessment).length || 7,
+        skill_scores: workSubmission.selfAssessment,
+        feedback: "Self-assessment submitted",
+        evidence: workSubmission.artifacts.join(", ")
       });
 
-      if (result.success) {
+      if (response.success) {
         setSubmitSuccess(true);
+        setWorkSubmission({
+          skillTokenId: "",
+          workDescription: "",
+          artifacts: [],
+          selfAssessment: {}
+        });
+
+        // Refresh reputation data
+        await refetch();
+
+        // Auto-close after success
         setTimeout(() => {
           setIsWorkSubmissionOpen(false);
           setSubmitSuccess(false);
-          setWorkSubmission({
-            skillTokenId: "",
-            workDescription: "",
-            artifacts: [],
-            selfAssessment: {}
-          });
-          refetch(); // Refresh reputation data
-        }, 2000);
+        }, 3000);
       } else {
-        setSubmitError(result.error || 'Failed to submit work for evaluation');
+        setSubmitError(response.error || "Failed to submit work evaluation");
       }
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to submit work for evaluation');
+      console.error("Failed to submit work evaluation:", err);
+      setSubmitError("Failed to submit work evaluation. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

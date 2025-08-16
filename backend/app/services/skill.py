@@ -21,6 +21,8 @@ from app.database import get_db_session, cache_manager
 from app.utils.hedera import (
     get_contract_manager, create_skill_token, update_skill_level,
     add_skill_experience, get_skill_token_info, get_user_skills,
+    endorse_skill_token, renew_skill_token, revoke_skill_token,
+    get_skill_endorsements, mark_expired_tokens,
     SkillTokenData, SkillCategory
 )
 from app.config import get_settings
@@ -1446,6 +1448,244 @@ class SkillService:
                 }
                 for i in range(3)
             ]
+
+    # ============ ADDITIONAL SKILL TOKEN FUNCTIONS ============
+
+    async def endorse_skill_token(
+        self,
+        token_id: str,
+        endorsement_data: str
+    ) -> Dict[str, Any]:
+        """
+        Endorse a skill token.
+        
+        Args:
+            token_id: ID of the skill token to endorse
+            endorsement_data: Data describing the endorsement
+            
+        Returns:
+            Dict containing endorsement result
+        """
+        try:
+            # Call blockchain function
+            contract_result = await endorse_skill_token(
+                token_id=token_id,
+                endorsement_data=endorsement_data
+            )
+            
+            if not contract_result.success:
+                return {
+                    "success": False,
+                    "error": contract_result.error
+                }
+            
+            # Cache endorsement in database
+            with get_db_session() as db:
+                # Add endorsement to database (you may need to create an Endorsement model)
+                # For now, just return success
+                pass
+            
+            return {
+                "success": True,
+                "transaction_id": contract_result.transaction_id,
+                "token_id": token_id,
+                "endorsement_data": endorsement_data
+            }
+            
+        except Exception as e:
+            logger.error(f"Error endorsing skill token {token_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def renew_skill_token(
+        self,
+        token_id: str,
+        new_expiry_date: int
+    ) -> Dict[str, Any]:
+        """
+        Renew a skill token.
+        
+        Args:
+            token_id: ID of the skill token to renew
+            new_expiry_date: New expiry date as Unix timestamp
+            
+        Returns:
+            Dict containing renewal result
+        """
+        try:
+            # Call blockchain function
+            contract_result = await renew_skill_token(
+                token_id=token_id,
+                new_expiry_date=new_expiry_date
+            )
+            
+            if not contract_result.success:
+                return {
+                    "success": False,
+                    "error": contract_result.error
+                }
+            
+            # Update database
+            with get_db_session() as db:
+                skill = db.query(SkillToken).filter(
+                    SkillToken.token_id == token_id
+                ).first()
+                
+                if skill:
+                    skill.expiry_date = datetime.fromtimestamp(new_expiry_date, timezone.utc)
+                    skill.updated_at = datetime.now(timezone.utc)
+                    db.commit()
+            
+            return {
+                "success": True,
+                "transaction_id": contract_result.transaction_id,
+                "token_id": token_id,
+                "new_expiry_date": new_expiry_date
+            }
+            
+        except Exception as e:
+            logger.error(f"Error renewing skill token {token_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def revoke_skill_token(
+        self,
+        token_id: str,
+        reason: str
+    ) -> Dict[str, Any]:
+        """
+        Revoke a skill token.
+        
+        Args:
+            token_id: ID of the skill token to revoke
+            reason: Reason for revocation
+            
+        Returns:
+            Dict containing revocation result
+        """
+        try:
+            # Call blockchain function
+            contract_result = await revoke_skill_token(
+                token_id=token_id,
+                reason=reason
+            )
+            
+            if not contract_result.success:
+                return {
+                    "success": False,
+                    "error": contract_result.error
+                }
+            
+            # Update database
+            with get_db_session() as db:
+                skill = db.query(SkillToken).filter(
+                    SkillToken.token_id == token_id
+                ).first()
+                
+                if skill:
+                    skill.is_active = False
+                    skill.revocation_reason = reason
+                    skill.updated_at = datetime.now(timezone.utc)
+                    db.commit()
+            
+            return {
+                "success": True,
+                "transaction_id": contract_result.transaction_id,
+                "token_id": token_id,
+                "reason": reason
+            }
+            
+        except Exception as e:
+            logger.error(f"Error revoking skill token {token_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_skill_endorsements(
+        self,
+        token_id: str
+    ) -> Dict[str, Any]:
+        """
+        Get endorsements for a skill token.
+        
+        Args:
+            token_id: ID of the skill token
+            
+        Returns:
+            Dict containing endorsements
+        """
+        try:
+            # Call blockchain function
+            result = await get_skill_endorsements(token_id=token_id)
+            
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", "Failed to get endorsements")
+                }
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error getting endorsements for token {token_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def mark_expired_tokens(
+        self,
+        token_ids: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Mark skill tokens as expired.
+        
+        Args:
+            token_ids: List of token IDs to mark as expired
+            
+        Returns:
+            Dict containing result
+        """
+        try:
+            # Call blockchain function
+            contract_result = await mark_expired_tokens(token_ids=token_ids)
+            
+            if not contract_result.success:
+                return {
+                    "success": False,
+                    "error": contract_result.error
+                }
+            
+            # Update database
+            with get_db_session() as db:
+                skills = db.query(SkillToken).filter(
+                    SkillToken.token_id.in_(token_ids)
+                ).all()
+                
+                for skill in skills:
+                    skill.is_active = False
+                    skill.expired_at = datetime.now(timezone.utc)
+                    skill.updated_at = datetime.now(timezone.utc)
+                
+                db.commit()
+            
+            return {
+                "success": True,
+                "transaction_id": contract_result.transaction_id,
+                "expired_tokens": len(token_ids)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error marking expired tokens: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
 
 # Singleton instance
 _skill_service: Optional[SkillService] = None

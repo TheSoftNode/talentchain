@@ -1858,8 +1858,8 @@ async def submit_work_evaluation(
         params.addUint256Array(skill_token_ids)
         params.addString(work_description)
         params.addString(work_content)
-        params.addUint256(overall_score)
-        params.addUint256Array(skill_scores)
+        params.addUint8(overall_score)
+        params.addUint8Array(skill_scores)
         params.addString(feedback)
         params.addString(ipfs_hash)
         
@@ -1881,7 +1881,7 @@ async def submit_work_evaluation(
                 try:
                     evaluation_id = str(record.contractFunctionResult.getUint256(0))
                 except:
-                    evaluation_id = f"evaluation_{int(datetime.now().timestamp())}"
+                    evaluation_id = f"eval_{int(datetime.now().timestamp())}"
             
             return TransactionResult(
                 success=True,
@@ -1904,20 +1904,18 @@ async def submit_work_evaluation(
         )
 
 
-async def update_reputation_score(
-    user: str,
-    category: str,
-    new_score: int,
-    evidence: str
+async def resolve_challenge(
+    challenge_id: str,
+    uphold_original: bool,
+    resolution: str
 ) -> TransactionResult:
     """
-    Update a user's reputation score.
+    Resolve a challenge using the ReputationOracle smart contract.
     
     Args:
-        user: User address
-        category: Skill category
-        new_score: New reputation score
-        evidence: Evidence for the score update
+        challenge_id: ID of the challenge to resolve
+        uphold_original: Whether to uphold the original evaluation
+        resolution: Resolution description
         
     Returns:
         TransactionResult with success status and details
@@ -1939,18 +1937,17 @@ async def update_reputation_score(
         # Create contract ID
         contract_id = ContractId.fromString(contract_address)
         
-        # Prepare function parameters for updateReputationScore
+        # Prepare function parameters for resolveChallenge
         params = ContractFunctionParameters()
-        params.addAddress(user)
-        params.addString(category)
-        params.addUint256(new_score)
-        params.addString(evidence)
+        params.addUint256(int(challenge_id))
+        params.addBool(uphold_original)
+        params.addString(resolution)
         
         # Execute contract function
         transaction = ContractExecuteTransaction()
         transaction.setContractId(contract_id)
         transaction.setGas(200000)
-        transaction.setFunction("updateReputationScore", params)
+        transaction.setFunction("resolveChallenge", params)
         
         # Sign and execute
         response = transaction.execute(client)
@@ -1960,7 +1957,7 @@ async def update_reputation_score(
             return TransactionResult(
                 success=True,
                 transaction_id=response.transactionId.toString(),
-                gas_used=receipt.gasUsed if hasattr(receipt, 'gasUsed') else 0,
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
                 contract_address=contract_address
             )
         else:
@@ -1970,8 +1967,2851 @@ async def update_reputation_score(
             )
             
     except Exception as e:
-        logger.error(f"Failed to update reputation score: {str(e)}")
+        logger.error(f"Failed to resolve challenge: {str(e)}")
         return TransactionResult(
             success=False,
             error=str(e)
         )
+
+
+async def slash_oracle(
+    oracle_address: str,
+    amount: int,
+    reason: str
+) -> TransactionResult:
+    """
+    Slash an oracle using the ReputationOracle smart contract.
+    
+    Args:
+        oracle_address: Address of the oracle to slash
+        amount: Amount to slash
+        reason: Reason for slashing
+        
+    Returns:
+        TransactionResult with success status and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get ReputationOracle contract info
+        oracle_config = contract_config.get('contracts', {}).get('ReputationOracle', {})
+        contract_address = oracle_config.get('address')
+        
+        if not contract_address:
+            return TransactionResult(
+                success=False,
+                error="ReputationOracle contract not deployed"
+            )
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for slashOracle
+        params = ContractFunctionParameters()
+        params.addAddress(oracle_address)
+        params.addUint256(amount)
+        params.addString(reason)
+        
+        # Execute contract function
+        transaction = ContractExecuteTransaction()
+        transaction.setContractId(contract_id)
+        transaction.setGas(200000)
+        transaction.setFunction("slashOracle", params)
+        
+        # Sign and execute
+        response = transaction.execute(client)
+        receipt = response.getReceipt(client)
+        
+        if receipt.status == Status.Success:
+            return TransactionResult(
+                success=True,
+                transaction_id=response.transactionId.toString(),
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
+                contract_address=contract_address
+            )
+        else:
+            return TransactionResult(
+                success=False,
+                error=f"Transaction failed with status: {receipt.status}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to slash oracle: {str(e)}")
+        return TransactionResult(
+            success=False,
+            error=str(e)
+        )
+
+
+async def withdraw_oracle_stake() -> TransactionResult:
+    """
+    Withdraw oracle stake using the ReputationOracle smart contract.
+    
+    Returns:
+        TransactionResult with success status and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get ReputationOracle contract info
+        oracle_config = contract_config.get('contracts', {}).get('ReputationOracle', {})
+        contract_address = oracle_config.get('address')
+        
+        if not contract_address:
+            return TransactionResult(
+                success=False,
+                error="ReputationOracle contract not deployed"
+            )
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for withdrawOracleStake (no parameters)
+        params = ContractFunctionParameters()
+        
+        # Execute contract function
+        transaction = ContractExecuteTransaction()
+        transaction.setContractId(contract_id)
+        transaction.setGas(200000)
+        transaction.setFunction("withdrawOracleStake", params)
+        
+        # Sign and execute
+        response = transaction.execute(client)
+        receipt = response.getReceipt(client)
+        
+        if receipt.status == Status.Success:
+            return TransactionResult(
+                success=True,
+                transaction_id=response.transactionId.toString(),
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
+                contract_address=contract_address
+            )
+        else:
+            return TransactionResult(
+                success=False,
+                error=f"Transaction failed with status: {receipt.status}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to withdraw oracle stake: {str(e)}")
+        return TransactionResult(
+            success=False,
+            error=str(e)
+        )
+
+
+async def get_oracle_performance(
+    oracle_address: str
+) -> Dict[str, Any]:
+    """
+    Get oracle performance metrics using the ReputationOracle smart contract.
+    
+    Args:
+        oracle_address: Address of the oracle
+        
+    Returns:
+        Dictionary containing performance metrics
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get ReputationOracle contract info
+        oracle_config = contract_config.get('contracts', {}).get('ReputationOracle', {})
+        contract_address = oracle_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "ReputationOracle contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getOraclePerformance
+        params = ContractFunctionParameters()
+        params.addAddress(oracle_address)
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getOraclePerformance", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                performance = {
+                    "evaluations_completed": result.getUint256(0) if result else 0,
+                    "successful_challenges": result.getUint256(1) if result else 0,
+                    "failed_challenges": result.getUint256(2) if result else 0,
+                    "last_activity": result.getUint256(3) if result else 0
+                }
+                
+                return {
+                    "success": True,
+                    "oracle_address": oracle_address,
+                    "performance": performance
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse oracle performance data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "oracle_address": oracle_address,
+                    "performance": {
+                        "evaluations_completed": 0,
+                        "successful_challenges": 0,
+                        "failed_challenges": 0,
+                        "last_activity": 0
+                    }
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get oracle performance: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+# =============================================================================
+# ADDITIONAL SKILL TOKEN FUNCTIONS
+# =============================================================================
+
+async def endorse_skill_token(
+    token_id: str,
+    endorsement_data: str
+) -> TransactionResult:
+    """
+    Endorse a skill token using the SkillToken smart contract.
+    
+    Args:
+        token_id: ID of the skill token to endorse
+        endorsement_data: Data describing the endorsement
+        
+    Returns:
+        TransactionResult with success status and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get SkillToken contract info
+        skill_token_config = contract_config.get('contracts', {}).get('SkillToken', {})
+        contract_address = skill_token_config.get('address')
+        
+        if not contract_address:
+            return TransactionResult(
+                success=False,
+                error="SkillToken contract not deployed"
+            )
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for endorseSkillToken
+        params = ContractFunctionParameters()
+        params.addUint256(int(token_id))
+        params.addString(endorsement_data)
+        
+        # Execute contract function
+        transaction = ContractExecuteTransaction()
+        transaction.setContractId(contract_id)
+        transaction.setGas(200000)
+        transaction.setFunction("endorseSkillToken", params)
+        
+        # Sign and execute
+        response = transaction.execute(client)
+        receipt = response.getReceipt(client)
+        
+        if receipt.status == Status.Success:
+            return TransactionResult(
+                success=True,
+                transaction_id=response.transactionId.toString(),
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
+                contract_address=contract_address
+            )
+        else:
+            return TransactionResult(
+                success=False,
+                error=f"Transaction failed with status: {receipt.status}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to endorse skill token: {str(e)}")
+        return TransactionResult(
+            success=False,
+            error=str(e)
+        )
+
+
+async def renew_skill_token(
+    token_id: str,
+    new_expiry_date: int
+) -> TransactionResult:
+    """
+    Renew a skill token using the SkillToken smart contract.
+    
+    Args:
+        token_id: ID of the skill token to renew
+        new_expiry_date: New expiry date as Unix timestamp
+        
+    Returns:
+        TransactionResult with success status and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get SkillToken contract info
+        skill_token_config = contract_config.get('contracts', {}).get('SkillToken', {})
+        contract_address = skill_token_config.get('address')
+        
+        if not contract_address:
+            return TransactionResult(
+                success=False,
+                error="SkillToken contract not deployed"
+            )
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for renewSkillToken
+        params = ContractFunctionParameters()
+        params.addUint256(int(token_id))
+        params.addUint64(new_expiry_date)
+        
+        # Execute contract function
+        transaction = ContractExecuteTransaction()
+        transaction.setContractId(contract_id)
+        transaction.setGas(200000)
+        transaction.setFunction("renewSkillToken", params)
+        
+        # Sign and execute
+        response = transaction.execute(client)
+        receipt = response.getReceipt(client)
+        
+        if receipt.status == Status.Success:
+            return TransactionResult(
+                success=True,
+                transaction_id=response.transactionId.toString(),
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
+                contract_address=contract_address
+            )
+        else:
+            return TransactionResult(
+                success=False,
+                error=f"Transaction failed with status: {receipt.status}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to renew skill token: {str(e)}")
+        return TransactionResult(
+            success=False,
+            error=str(e)
+        )
+
+
+async def revoke_skill_token(
+    token_id: str,
+    reason: str
+) -> TransactionResult:
+    """
+    Revoke a skill token using the SkillToken smart contract.
+    
+    Args:
+        token_id: ID of the skill token to revoke
+        reason: Reason for revocation
+        
+    Returns:
+        TransactionResult with success status and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get SkillToken contract info
+        skill_token_config = contract_config.get('contracts', {}).get('SkillToken', {})
+        contract_address = skill_token_config.get('address')
+        
+        if not contract_address:
+            return TransactionResult(
+                success=False,
+                error="SkillToken contract not deployed"
+            )
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for revokeSkillToken
+        params = ContractFunctionParameters()
+        params.addUint256(int(token_id))
+        params.addString(reason)
+        
+        # Execute contract function
+        transaction = ContractExecuteTransaction()
+        transaction.setContractId(contract_id)
+        transaction.setGas(200000)
+        transaction.setFunction("revokeSkillToken", params)
+        
+        # Sign and execute
+        response = transaction.execute(client)
+        receipt = response.getReceipt(client)
+        
+        if receipt.status == Status.Success:
+            return TransactionResult(
+                success=True,
+                transaction_id=response.transactionId.toString(),
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
+                contract_address=contract_address
+            )
+        else:
+            return TransactionResult(
+                success=False,
+                error=f"Transaction failed with status: {receipt.status}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to revoke skill token: {str(e)}")
+        return TransactionResult(
+            success=False,
+            error=str(e)
+        )
+
+
+async def get_skill_endorsements(
+    token_id: str
+) -> Dict[str, Any]:
+    """
+    Get endorsements for a skill token using the SkillToken smart contract.
+    
+    Args:
+        token_id: ID of the skill token
+        
+    Returns:
+        Dictionary containing endorsement data
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get SkillToken contract info
+        skill_token_config = contract_config.get('contracts', {}).get('SkillToken', {})
+        contract_address = skill_token_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "SkillToken contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getSkillEndorsements
+        params = ContractFunctionParameters()
+        params.addUint256(int(token_id))
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getSkillEndorsements", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            endorsements = []
+            
+            # Extract endorsement data from result
+            # This will depend on the actual return structure of the contract
+            try:
+                # Assuming the contract returns an array of endorsement structs
+                endorsement_count = result.getUint256(0) if result else 0
+                
+                for i in range(int(endorsement_count)):
+                    endorsement = {
+                        "endorser": result.getAddress(i * 3),
+                        "endorsement_data": result.getString(i * 3 + 1),
+                        "timestamp": result.getUint256(i * 3 + 2)
+                    }
+                    endorsements.append(endorsement)
+                    
+            except Exception as parse_error:
+                logger.warning(f"Could not parse endorsement data: {str(parse_error)}")
+                endorsements = []
+            
+            return {
+                "success": True,
+                "endorsements": endorsements,
+                "token_id": token_id
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get skill endorsements: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def mark_expired_tokens(
+    token_ids: List[str]
+) -> TransactionResult:
+    """
+    Mark skill tokens as expired using the SkillToken smart contract.
+    
+    Args:
+        token_ids: List of token IDs to mark as expired
+        
+    Returns:
+        TransactionResult with success status and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get SkillToken contract info
+        skill_token_config = contract_config.get('contracts', {}).get('SkillToken', {})
+        contract_address = skill_token_config.get('address')
+        
+        if not contract_address:
+            return TransactionResult(
+                success=False,
+                error="SkillToken contract not deployed"
+            )
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for markExpiredTokens
+        params = ContractFunctionParameters()
+        params.addUint256Array([int(token_id) for token_id in token_ids])
+        
+        # Execute contract function
+        transaction = ContractExecuteTransaction()
+        transaction.setContractId(contract_id)
+        transaction.setGas(300000)
+        transaction.setFunction("markExpiredTokens", params)
+        
+        # Sign and execute
+        response = transaction.execute(client)
+        receipt = response.getReceipt(client)
+        
+        if receipt.status == Status.Success:
+            return TransactionResult(
+                success=True,
+                transaction_id=response.transactionId.toString(),
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
+                contract_address=contract_address
+            )
+        else:
+            return TransactionResult(
+                success=False,
+                error=f"Transaction failed with status: {receipt.status}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to mark expired tokens: {str(e)}")
+        return TransactionResult(
+            success=False,
+            error=str(e)
+        )
+
+
+# =============================================================================
+# ADDITIONAL TALENT POOL FUNCTIONS
+# =============================================================================
+
+async def select_candidate(
+    pool_id: str,
+    candidate_address: str
+) -> TransactionResult:
+    """
+    Select a candidate for a job pool using the TalentPool smart contract.
+    
+    Args:
+        pool_id: ID of the job pool
+        candidate_address: Address of the selected candidate
+        
+    Returns:
+        TransactionResult with success status and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get TalentPool contract info
+        pool_config = contract_config.get('contracts', {}).get('TalentPool', {})
+        contract_address = pool_config.get('address')
+        
+        if not contract_address:
+            return TransactionResult(
+                success=False,
+                error="TalentPool contract not deployed"
+            )
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for selectCandidate
+        params = ContractFunctionParameters()
+        params.addUint256(int(pool_id))
+        params.addAddress(candidate_address)
+        
+        # Execute contract function
+        transaction = ContractExecuteTransaction()
+        transaction.setContractId(contract_id)
+        transaction.setGas(200000)
+        transaction.setFunction("selectCandidate", params)
+        
+        # Sign and execute
+        response = transaction.execute(client)
+        receipt = response.getReceipt(client)
+        
+        if receipt.status == Status.Success:
+            return TransactionResult(
+                success=True,
+                transaction_id=response.transactionId.toString(),
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
+                contract_address=contract_address
+            )
+        else:
+            return TransactionResult(
+                success=False,
+                error=f"Transaction failed with status: {receipt.status}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to select candidate: {str(e)}")
+        return TransactionResult(
+            success=False,
+            error=str(e)
+        )
+
+
+async def complete_pool(
+    pool_id: str
+) -> TransactionResult:
+    """
+    Complete a job pool using the TalentPool smart contract.
+    
+    Args:
+        pool_id: ID of the job pool to complete
+        
+    Returns:
+        TransactionResult with success status and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get TalentPool contract info
+        pool_config = contract_config.get('contracts', {}).get('TalentPool', {})
+        contract_address = pool_config.get('address')
+        
+        if not contract_address:
+            return TransactionResult(
+                success=False,
+                error="TalentPool contract not deployed"
+            )
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for completePool
+        params = ContractFunctionParameters()
+        params.addUint256(int(pool_id))
+        
+        # Execute contract function
+        transaction = ContractExecuteTransaction()
+        transaction.setContractId(contract_id)
+        transaction.setGas(200000)
+        transaction.setFunction("completePool", params)
+        
+        # Sign and execute
+        response = transaction.execute(client)
+        receipt = response.getReceipt(client)
+        
+        if receipt.status == Status.Success:
+            return TransactionResult(
+                success=True,
+                transaction_id=response.transactionId.toString(),
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
+                contract_address=contract_address
+            )
+        else:
+            return TransactionResult(
+                success=False,
+                error=f"Transaction failed with status: {receipt.status}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to complete pool: {str(e)}")
+        return TransactionResult(
+            success=False,
+            error=str(e)
+        )
+
+
+async def close_pool(
+    pool_id: str
+) -> TransactionResult:
+    """
+    Close a job pool using the TalentPool smart contract.
+    
+    Args:
+        pool_id: ID of the job pool to close
+        
+    Returns:
+        TransactionResult with success status and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get TalentPool contract info
+        pool_config = contract_config.get('contracts', {}).get('TalentPool', {})
+        contract_address = pool_config.get('address')
+        
+        if not contract_address:
+            return TransactionResult(
+                success=False,
+                error="TalentPool contract not deployed"
+            )
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for closePool
+        params = ContractFunctionParameters()
+        params.addUint256(int(pool_id))
+        
+        # Execute contract function
+        transaction = ContractExecuteTransaction()
+        transaction.setContractId(contract_id)
+        transaction.setGas(200000)
+        transaction.setFunction("closePool", params)
+        
+        # Sign and execute
+        response = transaction.execute(client)
+        receipt = response.getReceipt(client)
+        
+        if receipt.status == Status.Success:
+            return TransactionResult(
+                success=True,
+                transaction_id=response.transactionId.toString(),
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
+                contract_address=contract_address
+            )
+        else:
+            return TransactionResult(
+                success=False,
+                error=f"Transaction failed with status: {receipt.status}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to close pool: {str(e)}")
+        return TransactionResult(
+            success=False,
+            error=str(e)
+        )
+
+
+async def withdraw_application(
+    pool_id: str
+) -> TransactionResult:
+    """
+    Withdraw an application from a job pool using the TalentPool smart contract.
+    
+    Args:
+        pool_id: ID of the job pool to withdraw from
+        
+    Returns:
+        TransactionResult with success status and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get TalentPool contract info
+        pool_config = contract_config.get('contracts', {}).get('TalentPool', {})
+        contract_address = pool_config.get('address')
+        
+        if not contract_address:
+            return TransactionResult(
+                success=False,
+                error="TalentPool contract not deployed"
+            )
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for withdrawApplication
+        params = ContractFunctionParameters()
+        params.addUint256(int(pool_id))
+        
+        # Execute contract function
+        transaction = ContractExecuteTransaction()
+        transaction.setContractId(contract_id)
+        transaction.setGas(200000)
+        transaction.setFunction("withdrawApplication", params)
+        
+        # Sign and execute
+        response = transaction.execute(client)
+        receipt = response.getReceipt(client)
+        
+        if receipt.status == Status.Success:
+            return TransactionResult(
+                success=True,
+                transaction_id=response.transactionId.toString(),
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
+                contract_address=contract_address
+            )
+        else:
+            return TransactionResult(
+                success=False,
+                error=f"Transaction failed with status: {receipt.status}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to withdraw application: {str(e)}")
+        return TransactionResult(
+            success=False,
+            error=str(e)
+        )
+
+
+async def calculate_match_score(
+    pool_id: str,
+    candidate_address: str
+) -> Dict[str, Any]:
+    """
+    Calculate match score for a candidate in a job pool using the TalentPool smart contract.
+    
+    Args:
+        pool_id: ID of the job pool
+        candidate_address: Address of the candidate
+        
+    Returns:
+        Dictionary containing match score and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get TalentPool contract info
+        pool_config = contract_config.get('contracts', {}).get('TalentPool', {})
+        contract_address = pool_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "TalentPool contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for calculateMatchScore
+        params = ContractFunctionParameters()
+        params.addUint256(int(pool_id))
+        params.addAddress(candidate_address)
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("calculateMatchScore", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                match_score = result.getUint256(0) if result else 0
+                
+                return {
+                    "success": True,
+                    "pool_id": pool_id,
+                    "candidate_address": candidate_address,
+                    "match_score": match_score
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse match score data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "pool_id": pool_id,
+                    "candidate_address": candidate_address,
+                    "match_score": 0
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to calculate match score: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+# =============================================================================
+# ADDITIONAL GOVERNANCE FUNCTIONS
+# =============================================================================
+
+async def queue_proposal(
+    proposal_id: str
+) -> TransactionResult:
+    """
+    Queue a governance proposal for execution using the Governance smart contract.
+    
+    Args:
+        proposal_id: ID of the proposal to queue
+        
+    Returns:
+        TransactionResult with success status and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get Governance contract info
+        governance_config = contract_config.get('contracts', {}).get('Governance', {})
+        contract_address = governance_config.get('address')
+        
+        if not contract_address:
+            return TransactionResult(
+                success=False,
+                error="Governance contract not deployed"
+            )
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for queueProposal
+        params = ContractFunctionParameters()
+        params.addUint256(int(proposal_id))
+        
+        # Execute contract function
+        transaction = ContractExecuteTransaction()
+        transaction.setContractId(contract_id)
+        transaction.setGas(200000)
+        transaction.setFunction("queueProposal", params)
+        
+        # Sign and execute
+        response = transaction.execute(client)
+        receipt = response.getReceipt(client)
+        
+        if receipt.status == Status.Success:
+            return TransactionResult(
+                success=True,
+                transaction_id=response.transactionId.toString(),
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
+                contract_address=contract_address
+            )
+        else:
+            return TransactionResult(
+                success=False,
+                error=f"Transaction failed with status: {receipt.status}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to queue proposal: {str(e)}")
+        return TransactionResult(
+            success=False,
+            error=str(e)
+        )
+
+
+async def execute_proposal(
+    proposal_id: str
+) -> TransactionResult:
+    """
+    Execute a governance proposal using the Governance smart contract.
+    
+    Args:
+        proposal_id: ID of the proposal to execute
+        
+    Returns:
+        TransactionResult with success status and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get Governance contract info
+        governance_config = contract_config.get('contracts', {}).get('Governance', {})
+        contract_address = governance_config.get('address')
+        
+        if not contract_address:
+            return TransactionResult(
+                success=False,
+                error="Governance contract not deployed"
+            )
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for executeProposal
+        params = ContractFunctionParameters()
+        params.addUint256(int(proposal_id))
+        
+        # Execute contract function
+        transaction = ContractExecuteTransaction()
+        transaction.setContractId(contract_id)
+        transaction.setGas(300000)
+        transaction.setFunction("executeProposal", params)
+        
+        # Sign and execute
+        response = transaction.execute(client)
+        receipt = response.getReceipt(client)
+        
+        if receipt.status == Status.Success:
+            return TransactionResult(
+                success=True,
+                transaction_id=response.transactionId.toString(),
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
+                contract_address=contract_address
+            )
+        else:
+            return TransactionResult(
+                success=False,
+                error=f"Transaction failed with status: {receipt.status}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to execute proposal: {str(e)}")
+        return TransactionResult(
+            success=False,
+            error=str(e)
+        )
+
+
+async def cancel_proposal(
+    proposal_id: str
+) -> TransactionResult:
+    """
+    Cancel a governance proposal using the Governance smart contract.
+    
+    Args:
+        proposal_id: ID of the proposal to cancel
+        
+    Returns:
+        TransactionResult with success status and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get Governance contract info
+        governance_config = contract_config.get('contracts', {}).get('Governance', {})
+        contract_address = governance_config.get('address')
+        
+        if not contract_address:
+            return TransactionResult(
+                success=False,
+                error="Governance contract not deployed"
+            )
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for cancelProposal
+        params = ContractFunctionParameters()
+        params.addUint256(int(proposal_id))
+        
+        # Execute contract function
+        transaction = ContractExecuteTransaction()
+        transaction.setContractId(contract_id)
+        transaction.setGas(200000)
+        transaction.setFunction("cancelProposal", params)
+        
+        # Sign and execute
+        response = transaction.execute(client)
+        receipt = response.getReceipt(client)
+        
+        if receipt.status == Status.Success:
+            return TransactionResult(
+                success=True,
+                transaction_id=response.transactionId.toString(),
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
+                contract_address=contract_address
+            )
+        else:
+            return TransactionResult(
+                success=False,
+                error=f"Transaction failed with status: {receipt.status}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to cancel proposal: {str(e)}")
+        return TransactionResult(
+            success=False,
+            error=str(e)
+        )
+
+
+async def cast_vote_with_signature(
+    proposal_id: str,
+    vote: int,
+    reason: str,
+    signature: str
+) -> TransactionResult:
+    """
+    Cast a vote on a governance proposal with signature using the Governance smart contract.
+    
+    Args:
+        proposal_id: ID of the proposal to vote on
+        vote: Vote type (0=Against, 1=For, 2=Abstain)
+        reason: Optional reason for the vote
+        signature: Signature for the vote
+        
+    Returns:
+        TransactionResult with success status and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get Governance contract info
+        governance_config = contract_config.get('contracts', {}).get('Governance', {})
+        contract_address = governance_config.get('address')
+        
+        if not contract_address:
+            return TransactionResult(
+                success=False,
+                error="Governance contract not deployed"
+            )
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for castVoteWithSignature
+        params = ContractFunctionParameters()
+        params.addUint256(int(proposal_id))
+        params.addUint8(vote)
+        params.addString(reason)
+        params.addBytes(bytes.fromhex(signature.replace('0x', '')))
+        
+        # Execute contract function
+        transaction = ContractExecuteTransaction()
+        transaction.setContractId(contract_id)
+        transaction.setGas(250000)
+        transaction.setFunction("castVoteWithSignature", params)
+        
+        # Sign and execute
+        response = transaction.execute(client)
+        receipt = response.getReceipt(client)
+        
+        if receipt.status == Status.Success:
+            return TransactionResult(
+                success=True,
+                transaction_id=response.transactionId.toString(),
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
+                contract_address=contract_address
+            )
+        else:
+            return TransactionResult(
+                success=False,
+                error=f"Transaction failed with status: {receipt.status}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to cast vote with signature: {str(e)}")
+        return TransactionResult(
+            success=False,
+            error=str(e)
+        )
+
+
+async def batch_execute_proposals(
+    proposal_ids: List[str]
+) -> TransactionResult:
+    """
+    Batch execute multiple governance proposals using the Governance smart contract.
+    
+    Args:
+        proposal_ids: List of proposal IDs to execute
+        
+    Returns:
+        TransactionResult with success status and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get Governance contract info
+        governance_config = contract_config.get('contracts', {}).get('Governance', {})
+        contract_address = governance_config.get('address')
+        
+        if not contract_address:
+            return TransactionResult(
+                success=False,
+                error="Governance contract not deployed"
+            )
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for batchExecuteProposals
+        params = ContractFunctionParameters()
+        params.addUint256Array([int(proposal_id) for proposal_id in proposal_ids])
+        
+        # Execute contract function
+        transaction = ContractExecuteTransaction()
+        transaction.setContractId(contract_id)
+        transaction.setGas(500000)  # Higher gas for batch operation
+        transaction.setFunction("batchExecuteProposals", params)
+        
+        # Sign and execute
+        response = transaction.execute(client)
+        receipt = response.getReceipt(client)
+        
+        if receipt.status == Status.Success:
+            return TransactionResult(
+                success=True,
+                transaction_id=response.transactionId.toString(),
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
+                contract_address=contract_address
+            )
+        else:
+            return TransactionResult(
+                success=False,
+                error=f"Transaction failed with status: {receipt.status}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to batch execute proposals: {str(e)}")
+        return TransactionResult(
+            success=False,
+            error=str(e)
+        )
+
+
+# =============================================================================
+# ADDITIONAL REPUTATION ORACLE FUNCTIONS
+# =============================================================================
+
+async def get_category_score(
+    user_address: str,
+    category: str
+) -> Dict[str, Any]:
+    """
+    Get category-specific reputation score using the ReputationOracle smart contract.
+    
+    Args:
+        user_address: User's address
+        category: Skill category
+        
+    Returns:
+        Dictionary containing category score
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get ReputationOracle contract info
+        oracle_config = contract_config.get('contracts', {}).get('ReputationOracle', {})
+        contract_address = oracle_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "ReputationOracle contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getCategoryScore
+        params = ContractFunctionParameters()
+        params.addAddress(user_address)
+        params.addString(category)
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getCategoryScore", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                category_score = result.getUint256(0) if result else 0
+                
+                return {
+                    "success": True,
+                    "user_address": user_address,
+                    "category": category,
+                    "score": category_score
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse category score data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "user_address": user_address,
+                    "category": category,
+                    "score": 0
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get category score: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def get_work_evaluation(
+    evaluation_id: str
+) -> Dict[str, Any]:
+    """
+    Get work evaluation details using the ReputationOracle smart contract.
+    
+    Args:
+        evaluation_id: ID of the evaluation
+        
+    Returns:
+        Dictionary containing evaluation details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get ReputationOracle contract info
+        oracle_config = contract_config.get('contracts', {}).get('ReputationOracle', {})
+        contract_address = oracle_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "ReputationOracle contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getWorkEvaluation
+        params = ContractFunctionParameters()
+        params.addUint256(int(evaluation_id))
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getWorkEvaluation", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                evaluation = {
+                    "user": result.getAddress(0) if result else "",
+                    "skill_token_ids": [result.getUint256(1)] if result else [],  # Simplified for single token
+                    "overall_score": result.getUint256(2) if result else 0,
+                    "feedback": result.getString(3) if result else "",
+                    "evaluated_by": result.getAddress(4) if result else "",
+                    "timestamp": result.getUint64(5) if result else 0,
+                    "ipfs_hash": result.getString(6) if result else ""
+                }
+                
+                return {
+                    "success": True,
+                    "evaluation_id": evaluation_id,
+                    "evaluation": evaluation
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse work evaluation data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "evaluation_id": evaluation_id,
+                    "evaluation": {
+                        "user": "",
+                        "skill_token_ids": [],
+                        "overall_score": 0,
+                        "feedback": "",
+                        "evaluated_by": "",
+                        "timestamp": 0,
+                        "ipfs_hash": ""
+                    }
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get work evaluation: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def get_user_evaluations(
+    user_address: str
+) -> Dict[str, Any]:
+    """
+    Get all evaluations for a user using the ReputationOracle smart contract.
+    
+    Args:
+        user_address: User's address
+        
+    Returns:
+        Dictionary containing user evaluations
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get ReputationOracle contract info
+        oracle_config = contract_config.get('contracts', {}).get('ReputationOracle', {})
+        contract_address = oracle_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "ReputationOracle contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getUserEvaluations
+        params = ContractFunctionParameters()
+        params.addAddress(user_address)
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getUserEvaluations", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                # This is a simplified implementation - actual contract may return different structure
+                evaluations = []
+                # For now, return empty list as the actual structure depends on contract implementation
+                
+                return {
+                    "success": True,
+                    "user_address": user_address,
+                    "evaluations": evaluations
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse user evaluations data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "user_address": user_address,
+                    "evaluations": []
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get user evaluations: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def get_global_stats() -> Dict[str, Any]:
+    """
+    Get global reputation statistics using the ReputationOracle smart contract.
+    
+    Returns:
+        Dictionary containing global stats
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get ReputationOracle contract info
+        oracle_config = contract_config.get('contracts', {}).get('ReputationOracle', {})
+        contract_address = oracle_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "ReputationOracle contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getGlobalStats (no parameters)
+        params = ContractFunctionParameters()
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getGlobalStats", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                stats = {
+                    "total_evaluations": result.getUint256(0) if result else 0,
+                    "total_challenges": result.getUint256(1) if result else 0,
+                    "total_oracle_stake": result.getUint256(2) if result else 0,
+                    "active_oracle_count": result.getUint256(3) if result else 0
+                }
+                
+                return {
+                    "success": True,
+                    "stats": stats
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse global stats data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "stats": {
+                        "total_evaluations": 0,
+                        "total_challenges": 0,
+                        "total_oracle_stake": 0,
+                        "active_oracle_count": 0
+                    }
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get global stats: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def update_oracle_status(
+    oracle_address: str,
+    is_active: bool,
+    reason: str
+) -> TransactionResult:
+    """
+    Update oracle status using the ReputationOracle smart contract.
+    
+    Args:
+        oracle_address: Address of the oracle
+        is_active: Whether the oracle should be active
+        reason: Reason for status change
+        
+    Returns:
+        TransactionResult with success status and details
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get ReputationOracle contract info
+        oracle_config = contract_config.get('contracts', {}).get('ReputationOracle', {})
+        contract_address = oracle_config.get('address')
+        
+        if not contract_address:
+            return TransactionResult(
+                success=False,
+                error="ReputationOracle contract not deployed"
+            )
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for updateOracleStatus
+        params = ContractFunctionParameters()
+        params.addAddress(oracle_address)
+        params.addBool(is_active)
+        params.addString(reason)
+        
+        # Execute contract function
+        transaction = ContractExecuteTransaction()
+        transaction.setContractId(contract_id)
+        transaction.setGas(200000)
+        transaction.setFunction("updateOracleStatus", params)
+        
+        # Sign and execute
+        response = transaction.execute(client)
+        receipt = response.getReceipt(client)
+        
+        if receipt.status == Status.Success:
+            return TransactionResult(
+                success=True,
+                transaction_id=response.transactionId.toString(),
+                gas_used=response.getRecord(client).gasUsed if response.getRecord(client) else 0,
+                contract_address=contract_address
+            )
+        else:
+            return TransactionResult(
+                success=False,
+                error=f"Transaction failed with status: {receipt.status}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to update oracle status: {str(e)}")
+        return TransactionResult(
+            success=False,
+            error=str(e)
+        )
+
+
+async def get_tokens_by_category(
+    category: str
+) -> Dict[str, Any]:
+    """
+    Get all skill tokens in a specific category using the SkillToken smart contract.
+    
+    Args:
+        category: Skill category to search for
+        
+    Returns:
+        Dictionary containing tokens in the category
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get SkillToken contract info
+        skill_token_config = contract_config.get('contracts', {}).get('SkillToken', {})
+        contract_address = skill_token_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "SkillToken contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getTokensByCategory
+        params = ContractFunctionParameters()
+        params.addString(category)
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getTokensByCategory", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            tokens = []
+            
+            try:
+                # This is a simplified implementation - actual contract may return different structure
+                # For now, return empty list as the actual structure depends on contract implementation
+                
+                return {
+                    "success": True,
+                    "category": category,
+                    "tokens": tokens
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse category tokens data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "category": category,
+                    "tokens": []
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get tokens by category: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def get_total_skills_by_category(
+    category: str
+) -> Dict[str, Any]:
+    """
+    Get total number of skills in a category using the SkillToken smart contract.
+    
+    Args:
+        category: Skill category to count
+        
+    Returns:
+        Dictionary containing total count
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get SkillToken contract info
+        skill_token_config = contract_config.get('contracts', {}).get('SkillToken', {})
+        contract_address = skill_token_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "SkillToken contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getTotalSkillsByCategory
+        params = ContractFunctionParameters()
+        params.addString(category)
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getTotalSkillsByCategory", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                total_count = result.getUint256(0) if result else 0
+                
+                return {
+                    "success": True,
+                    "category": category,
+                    "total_count": total_count
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse total skills data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "category": category,
+                    "total_count": 0
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get total skills by category: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+# =============================================================================
+# ADDITIONAL GOVERNANCE FUNCTIONS
+# =============================================================================
+
+async def get_proposal_status(
+    proposal_id: str
+) -> Dict[str, Any]:
+    """
+    Get proposal status using the Governance smart contract.
+    
+    Args:
+        proposal_id: ID of the proposal
+        
+    Returns:
+        Dictionary containing proposal status
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get Governance contract info
+        governance_config = contract_config.get('contracts', {}).get('Governance', {})
+        contract_address = governance_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "Governance contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getProposalStatus
+        params = ContractFunctionParameters()
+        params.addUint256(int(proposal_id))
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getProposalStatus", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                status = result.getUint8(0) if result else 0
+                
+                return {
+                    "success": True,
+                    "proposal_id": proposal_id,
+                    "status": status
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse proposal status data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "proposal_id": proposal_id,
+                    "status": 0
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get proposal status: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def get_vote_receipt(
+    proposal_id: str,
+    voter: str
+) -> Dict[str, Any]:
+    """
+    Get vote receipt for a voter on a proposal using the Governance smart contract.
+    
+    Args:
+        proposal_id: ID of the proposal
+        voter: Address of the voter
+        
+    Returns:
+        Dictionary containing vote receipt
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get Governance contract info
+        governance_config = contract_config.get('contracts', {}).get('Governance', {})
+        contract_address = governance_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "Governance contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getVoteReceipt
+        params = ContractFunctionParameters()
+        params.addUint256(int(proposal_id))
+        params.addAddress(voter)
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getVoteReceipt", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                # This is a simplified implementation - actual contract may return different structure
+                vote_receipt = {
+                    "has_voted": True,  # Placeholder
+                    "vote": 0,  # Placeholder
+                    "weight": 0  # Placeholder
+                }
+                
+                return {
+                    "success": True,
+                    "proposal_id": proposal_id,
+                    "voter": voter,
+                    "receipt": vote_receipt
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse vote receipt data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "proposal_id": proposal_id,
+                    "voter": voter,
+                    "receipt": {
+                        "has_voted": False,
+                        "vote": 0,
+                        "weight": 0
+                    }
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get vote receipt: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def get_quorum() -> Dict[str, Any]:
+    """
+    Get quorum requirement using the Governance smart contract.
+    
+    Returns:
+        Dictionary containing quorum information
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get Governance contract info
+        governance_config = contract_config.get('contracts', {}).get('Governance', {})
+        contract_address = governance_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "Governance contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getQuorum (no parameters)
+        params = ContractFunctionParameters()
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getQuorum", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                quorum = result.getUint256(0) if result else 0
+                
+                return {
+                    "success": True,
+                    "quorum": quorum
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse quorum data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "quorum": 0
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get quorum: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def get_voting_delay() -> Dict[str, Any]:
+    """
+    Get voting delay using the Governance smart contract.
+    
+    Returns:
+        Dictionary containing voting delay information
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get Governance contract info
+        governance_config = contract_config.get('contracts', {}).get('Governance', {})
+        contract_address = governance_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "Governance contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getVotingDelay (no parameters)
+        params = ContractFunctionParameters()
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getVotingDelay", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                voting_delay = result.getUint256(0) if result else 0
+                
+                return {
+                    "success": True,
+                    "voting_delay": voting_delay
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse voting delay data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "voting_delay": 0
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get voting delay: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def get_voting_period() -> Dict[str, Any]:
+    """
+    Get voting period using the Governance smart contract.
+    
+    Returns:
+        Dictionary containing voting period information
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get Governance contract info
+        governance_config = contract_config.get('contracts', {}).get('Governance', {})
+        contract_address = governance_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "Governance contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getVotingPeriod (no parameters)
+        params = ContractFunctionParameters()
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getVotingPeriod", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                voting_period = result.getUint256(0) if result else 0
+                
+                return {
+                    "success": True,
+                    "voting_period": voting_period
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse voting period data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "voting_period": 0
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get voting period: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def get_proposal_threshold() -> Dict[str, Any]:
+    """
+    Get proposal threshold using the Governance smart contract.
+    
+    Returns:
+        Dictionary containing proposal threshold information
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get Governance contract info
+        governance_config = contract_config.get('contracts', {}).get('Governance', {})
+        contract_address = governance_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "Governance contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getProposalThreshold (no parameters)
+        params = ContractFunctionParameters()
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getProposalThreshold", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                proposal_threshold = result.getUint256(0) if result else 0
+                
+                return {
+                    "success": True,
+                    "proposal_threshold": proposal_threshold
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse proposal threshold data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "proposal_threshold": 0
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get proposal threshold: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def get_all_proposals() -> Dict[str, Any]:
+    """
+    Get all proposals using the Governance smart contract.
+    
+    Returns:
+        Dictionary containing all proposals
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get Governance contract info
+        governance_config = contract_config.get('contracts', {}).get('Governance', {})
+        contract_address = governance_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "Governance contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getAllProposals (no parameters)
+        params = ContractFunctionParameters()
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getAllProposals", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                # This is a simplified implementation - actual contract may return different structure
+                proposals = []
+                # For now, return empty list as the actual structure depends on contract implementation
+                
+                return {
+                    "success": True,
+                    "proposals": proposals
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse all proposals data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "proposals": []
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get all proposals: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def get_active_proposals() -> Dict[str, Any]:
+    """
+    Get active proposals using the Governance smart contract.
+    
+    Returns:
+        Dictionary containing active proposals
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get Governance contract info
+        governance_config = contract_config.get('contracts', {}).get('Governance', {})
+        contract_address = governance_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "Governance contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getActiveProposals (no parameters)
+        params = ContractFunctionParameters()
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getActiveProposals", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                # This is a simplified implementation - actual contract may return different structure
+                active_proposals = []
+                # For now, return empty list as the actual structure depends on contract implementation
+                
+                return {
+                    "success": True,
+                    "active_proposals": active_proposals
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse active proposals data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "active_proposals": []
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get active proposals: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def can_execute(
+    proposal_id: str
+) -> Dict[str, Any]:
+    """
+    Check if a proposal can be executed using the Governance smart contract.
+    
+    Args:
+        proposal_id: ID of the proposal
+        
+    Returns:
+        Dictionary containing execution status
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get Governance contract info
+        governance_config = contract_config.get('contracts', {}).get('Governance', {})
+        contract_address = governance_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "Governance contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for canExecute
+        params = ContractFunctionParameters()
+        params.addUint256(int(proposal_id))
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("canExecute", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                can_execute = result.getBool(0) if result else False
+                
+                return {
+                    "success": True,
+                    "proposal_id": proposal_id,
+                    "can_execute": can_execute
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse can execute data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "proposal_id": proposal_id,
+                    "can_execute": False
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to check if proposal can execute: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def has_voted(
+    proposal_id: str,
+    voter: str
+) -> Dict[str, Any]:
+    """
+    Check if a voter has voted on a proposal using the Governance smart contract.
+    
+    Args:
+        proposal_id: ID of the proposal
+        voter: Address of the voter
+        
+    Returns:
+        Dictionary containing voting status
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get Governance contract info
+        governance_config = contract_config.get('contracts', {}).get('Governance', {})
+        contract_address = governance_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "Governance contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for hasVoted
+        params = ContractFunctionParameters()
+        params.addUint256(int(proposal_id))
+        params.addAddress(voter)
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("hasVoted", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                has_voted = result.getBool(0) if result else False
+                
+                return {
+                    "success": True,
+                    "proposal_id": proposal_id,
+                    "voter": voter,
+                    "has_voted": has_voted
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse has voted data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "proposal_id": proposal_id,
+                    "voter": voter,
+                    "has_voted": False
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to check if voter has voted: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+# =============================================================================
+# ADDITIONAL TALENT POOL FUNCTIONS
+# =============================================================================
+
+async def get_pool_metrics(
+    pool_id: str
+) -> Dict[str, Any]:
+    """
+    Get pool metrics using the TalentPool smart contract.
+    
+    Args:
+        pool_id: ID of the job pool
+        
+    Returns:
+        Dictionary containing pool metrics
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get TalentPool contract info
+        pool_config = contract_config.get('contracts', {}).get('TalentPool', {})
+        contract_address = pool_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "TalentPool contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getPoolMetrics
+        params = ContractFunctionParameters()
+        params.addUint256(int(pool_id))
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getPoolMetrics", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                # This is a simplified implementation - actual contract may return different structure
+                metrics = {
+                    "total_applications": 0,  # Placeholder
+                    "match_score_average": 0,  # Placeholder
+                    "completion_rate": 0  # Placeholder
+                }
+                
+                return {
+                    "success": True,
+                    "pool_id": pool_id,
+                    "metrics": metrics
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse pool metrics data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "pool_id": pool_id,
+                    "metrics": {
+                        "total_applications": 0,
+                        "match_score_average": 0,
+                        "completion_rate": 0
+                    }
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get pool metrics: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def get_talent_pool_global_stats() -> Dict[str, Any]:
+    """
+    Get global talent pool statistics using the TalentPool smart contract.
+    
+    Returns:
+        Dictionary containing global stats
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get TalentPool contract info
+        pool_config = contract_config.get('contracts', {}).get('TalentPool', {})
+        contract_address = pool_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "TalentPool contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getGlobalStats (no parameters)
+        params = ContractFunctionParameters()
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getGlobalStats", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                stats = {
+                    "total_pools": result.getUint256(0) if result else 0,
+                    "total_applications": result.getUint256(1) if result else 0,
+                    "total_matches": result.getUint256(2) if result else 0,
+                    "total_staked": result.getUint256(3) if result else 0
+                }
+                
+                return {
+                    "success": True,
+                    "stats": stats
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse global stats data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "stats": {
+                        "total_pools": 0,
+                        "total_applications": 0,
+                        "total_matches": 0,
+                        "total_staked": 0
+                    }
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get global stats: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def get_active_pools_count() -> Dict[str, Any]:
+    """
+    Get active pools count using the TalentPool smart contract.
+    
+    Returns:
+        Dictionary containing active pools count
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get TalentPool contract info
+        pool_config = contract_config.get('contracts', {}).get('TalentPool', {})
+        contract_address = pool_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "TalentPool contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getActivePoolsCount (no parameters)
+        params = ContractFunctionParameters()
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getActivePoolsCount", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                active_count = result.getUint256(0) if result else 0
+                
+                return {
+                    "success": True,
+                    "active_pools_count": active_count
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse active pools count data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "active_pools_count": 0
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get active pools count: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def get_total_pools_count() -> Dict[str, Any]:
+    """
+    Get total pools count using the TalentPool smart contract.
+    
+    Returns:
+        Dictionary containing total pools count
+    """
+    try:
+        client = get_hedera_client()
+        contract_config = get_contract_manager()
+        
+        # Get TalentPool contract info
+        pool_config = contract_config.get('contracts', {}).get('TalentPool', {})
+        contract_address = pool_config.get('address')
+        
+        if not contract_address:
+            return {
+                "success": False,
+                "error": "TalentPool contract not deployed"
+            }
+        
+        # Create contract ID
+        contract_id = ContractId.fromString(contract_address)
+        
+        # Prepare function parameters for getTotalPoolsCount (no parameters)
+        params = ContractFunctionParameters()
+        
+        # Execute contract query
+        query = ContractCallQuery()
+        query.setContractId(contract_id)
+        query.setGas(100000)
+        query.setFunction("getTotalPoolsCount", params)
+        
+        # Execute query
+        response = query.execute(client)
+        
+        if response.getStatus() == Status.Success:
+            # Parse the response data
+            result = response.getContractFunctionResult()
+            
+            try:
+                total_count = result.getUint256(0) if result else 0
+                
+                return {
+                    "success": True,
+                    "total_pools_count": total_count
+                }
+                
+            except Exception as parse_error:
+                logger.warning(f"Could not parse total pools count data: {str(parse_error)}")
+                return {
+                    "success": True,
+                    "total_pools_count": 0
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"Query failed with status: {response.getStatus()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get total pools count: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }

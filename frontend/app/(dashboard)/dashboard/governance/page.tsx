@@ -25,7 +25,7 @@ import {
     Activity,
     Award
 } from 'lucide-react';
-import { contractService } from '@/lib/api/contract-service';
+import { apiClient } from '@/lib/api/client';
 import {
     GovernanceProposal,
     EmergencyProposal,
@@ -33,7 +33,7 @@ import {
     GovernanceMetrics,
     GovernanceSettings,
     CreateProposalRequest
-} from '@/lib/types/contracts';
+} from '@/lib/api/client';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -83,8 +83,8 @@ export default function GovernancePage() {
         try {
             // Load all governance data in parallel
             const [proposalsRes, votingPowerRes] = await Promise.all([
-                contractService.getProposals(0, 50),
-                user?.walletAddress ? contractService.getVotingPower(user.walletAddress) : null,
+                apiClient.getProposals(1, 50),
+                user?.walletAddress ? apiClient.getVotingPower(user.walletAddress) : null,
             ]);
 
             if (proposalsRes.success && proposalsRes.data) {
@@ -92,7 +92,7 @@ export default function GovernancePage() {
 
                 // Separate emergency proposals
                 const emergency = proposalsRes.data.items?.filter(
-                    (p: GovernanceProposal) => p.proposalType === 'EMERGENCY'
+                    (p: GovernanceProposal) => p.proposalType === 1
                 ) || [];
                 setEmergencyProposals(emergency);
             } else {
@@ -105,6 +105,7 @@ export default function GovernancePage() {
                 activeProposals: proposals.filter(p => p.status === 'ACTIVE').length,
                 totalVoters: 156,
                 totalVotingPower: 10000,
+                participationRate: 0.65,
                 averageParticipation: 0.65
             });
 
@@ -150,12 +151,12 @@ export default function GovernancePage() {
 
         try {
             const request: CreateProposalRequest = {
-                proposerAddress: user.walletAddress,
+                title: proposalForm.title,
                 description: proposalForm.description,
                 targets: proposalForm.targets.filter(t => t.trim()),
                 values: proposalForm.values,
                 calldatas: proposalForm.calldatas.filter(c => c.trim()),
-                proposalType: proposalForm.proposalType === 'EMERGENCY' ? 1 : 0
+                ipfsHash: `ipfs://proposal-${Date.now()}`
             };
 
             // TODO: Call contract service
@@ -483,7 +484,7 @@ export default function GovernancePage() {
                                         <div className="flex-1">
                                             <p className="text-sm font-medium text-slate-900 dark:text-white">{proposal.title}</p>
                                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                                                {formatDistanceToNow(new Date(proposal.createdAt), { addSuffix: true })}
+                                                {formatDistanceToNow(new Date(proposal.created * 1000), { addSuffix: true })}
                                             </p>
                                         </div>
                                         <Badge className={getProposalStatusColor(proposal.status)}>
@@ -622,7 +623,7 @@ export default function GovernancePage() {
                                                         </span>
                                                         <span className="flex items-center gap-1">
                                                             <Zap className="h-4 w-4" />
-                                                            Emergency Level: {proposal.proposalType === 'EMERGENCY' ? 'HIGH' : 'STANDARD'}
+                                                            Emergency Level: {proposal.proposalType === 1 ? 'HIGH' : 'STANDARD'}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -720,14 +721,14 @@ export default function GovernancePage() {
                                                 <div className="flex items-center gap-3">
                                                     <Badge
                                                         className={
-                                                            vote.vote === 'FOR' ? 'bg-green-500' :
-                                                                vote.vote === 'AGAINST' ? 'bg-red-500' : 'bg-yellow-500'
+                                                            vote.support === 1 ? 'bg-green-500' :
+                                                                vote.support === 0 ? 'bg-red-500' : 'bg-yellow-500'
                                                         }
                                                     >
-                                                        {vote.vote}
+                                                        {vote.support === 1 ? 'FOR' : vote.support === 0 ? 'AGAINST' : 'ABSTAIN'}
                                                     </Badge>
                                                     <span className="text-sm text-slate-500 dark:text-slate-400">
-                                                        Power: {vote.votingPower}
+                                                        Power: {vote.votingPower || 0}
                                                     </span>
                                                 </div>
                                             </div>

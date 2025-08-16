@@ -42,7 +42,8 @@ except ImportError:
 
 from app.utils.hedera import (
     get_contract_manager, get_client, submit_hcs_message,
-    validate_hedera_address
+    validate_hedera_address, resolve_challenge, slash_oracle,
+    withdraw_oracle_stake, get_oracle_performance
 )
 
 try:
@@ -1458,6 +1459,190 @@ class ReputationService:
         
         except Exception as e:
             logger.error(f"Error submitting reputation evidence: {str(e)}")
+
+    # ============ ADDITIONAL REPUTATION ORACLE FUNCTIONS ============
+
+    async def resolve_challenge(
+        self,
+        challenge_id: str,
+        uphold_original: bool,
+        resolution: str
+    ) -> Dict[str, Any]:
+        """
+        Resolve a challenge to a work evaluation.
+        
+        Args:
+            challenge_id: ID of the challenge to resolve
+            uphold_original: Whether to uphold the original evaluation
+            resolution: Resolution description
+            
+        Returns:
+            Dict containing resolution result
+        """
+        try:
+            # Call blockchain function
+            contract_result = await resolve_challenge(
+                challenge_id=challenge_id,
+                uphold_original=uphold_original,
+                resolution=resolution
+            )
+            
+            if not contract_result.success:
+                return {
+                    "success": False,
+                    "error": contract_result.error
+                }
+            
+            # Update database
+            if DATABASE_MODELS_AVAILABLE:
+                with self._get_db_session() as db:
+                    challenge = db.query(EvaluationChallenge).filter(
+                        EvaluationChallenge.challenge_id == challenge_id
+                    ).first()
+                    
+                    if challenge:
+                        challenge.status = "resolved"
+                        challenge.resolution = resolution
+                        challenge.resolved_at = datetime.now(timezone.utc)
+                        challenge.uphold_original = uphold_original
+                        db.commit()
+            
+            return {
+                "success": True,
+                "transaction_id": contract_result.transaction_id,
+                "challenge_id": challenge_id,
+                "uphold_original": uphold_original,
+                "resolution": resolution
+            }
+            
+        except Exception as e:
+            logger.error(f"Error resolving challenge {challenge_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def slash_oracle(
+        self,
+        oracle_address: str,
+        amount: int,
+        reason: str
+    ) -> Dict[str, Any]:
+        """
+        Slash an oracle for poor performance or misconduct.
+        
+        Args:
+            oracle_address: Address of the oracle to slash
+            amount: Amount to slash
+            reason: Reason for slashing
+            
+        Returns:
+            Dict containing slashing result
+        """
+        try:
+            # Call blockchain function
+            contract_result = await slash_oracle(
+                oracle_address=oracle_address,
+                amount=amount,
+                reason=reason
+            )
+            
+            if not contract_result.success:
+                return {
+                    "success": False,
+                    "error": contract_result.error
+                }
+            
+            # Update database
+            if DATABASE_MODELS_AVAILABLE:
+                with self._get_db_session() as db:
+                    oracle = db.query(ReputationOracle).filter(
+                        ReputationOracle.oracle_address == oracle_address
+                    ).first()
+                    
+                    if oracle:
+                        oracle.is_active = False
+                        oracle.slashed_amount = amount
+                        oracle.slash_reason = reason
+                        oracle.slashed_at = datetime.now(timezone.utc)
+                        db.commit()
+            
+            return {
+                "success": True,
+                "transaction_id": contract_result.transaction_id,
+                "oracle_address": oracle_address,
+                "amount": amount,
+                "reason": reason
+            }
+            
+        except Exception as e:
+            logger.error(f"Error slashing oracle {oracle_address}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def withdraw_oracle_stake(self) -> Dict[str, Any]:
+        """
+        Withdraw oracle stake.
+        
+        Returns:
+            Dict containing withdrawal result
+        """
+        try:
+            # Call blockchain function
+            contract_result = await withdraw_oracle_stake()
+            
+            if not contract_result.success:
+                return {
+                    "success": False,
+                    "error": contract_result.error
+                }
+            
+            return {
+                "success": True,
+                "transaction_id": contract_result.transaction_id,
+                "message": "Oracle stake withdrawn successfully"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error withdrawing oracle stake: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_oracle_performance(
+        self,
+        oracle_address: str
+    ) -> Dict[str, Any]:
+        """
+        Get oracle performance metrics.
+        
+        Args:
+            oracle_address: Address of the oracle
+            
+        Returns:
+            Dict containing performance metrics
+        """
+        try:
+            # Call blockchain function
+            result = await get_oracle_performance(oracle_address=oracle_address)
+            
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", "Failed to get oracle performance")
+                }
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error getting oracle performance for {oracle_address}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
 
 
 # Fallback storage for when database is not available

@@ -36,7 +36,8 @@ except ImportError:
 
 from app.utils.hedera import (
     get_contract_manager, create_job_pool, apply_to_pool as hedera_apply_to_pool, 
-    make_pool_match, get_job_pool_info
+    make_pool_match, get_job_pool_info, select_candidate, complete_pool,
+    close_pool, withdraw_application, calculate_match_score
 )
 
 try:
@@ -744,6 +745,259 @@ class TalentPoolService:
         except Exception as e:
             logger.error(f"Error listing pools: {str(e)}")
             return []
+
+    # ============ ADDITIONAL TALENT POOL FUNCTIONS ============
+
+    async def select_candidate(
+        self,
+        pool_id: str,
+        candidate_address: str
+    ) -> Dict[str, Any]:
+        """
+        Select a candidate for a job pool.
+        
+        Args:
+            pool_id: ID of the job pool
+            candidate_address: Address of the selected candidate
+            
+        Returns:
+            Dict containing selection result
+        """
+        try:
+            # Call blockchain function
+            contract_result = await select_candidate(
+                pool_id=pool_id,
+                candidate_address=candidate_address
+            )
+            
+            if not contract_result.success:
+                return {
+                    "success": False,
+                    "error": contract_result.error
+                }
+            
+            # Update database
+            if DATABASE_MODELS_AVAILABLE:
+                with self._get_db_session() as db:
+                    pool = db.query(JobPool).filter(
+                        JobPool.pool_id == pool_id
+                    ).first()
+                    
+                    if pool:
+                        pool.status = PoolStatusEnum.IN_PROGRESS.value
+                        pool.selected_candidate = candidate_address
+                        pool.updated_at = datetime.now(timezone.utc)
+                        db.commit()
+            
+            return {
+                "success": True,
+                "transaction_id": contract_result.transaction_id,
+                "pool_id": pool_id,
+                "selected_candidate": candidate_address
+            }
+            
+        except Exception as e:
+            logger.error(f"Error selecting candidate for pool {pool_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def complete_pool(
+        self,
+        pool_id: str
+    ) -> Dict[str, Any]:
+        """
+        Complete a job pool.
+        
+        Args:
+            pool_id: ID of the job pool to complete
+            
+        Returns:
+            Dict containing completion result
+        """
+        try:
+            # Call blockchain function
+            contract_result = await complete_pool(pool_id=pool_id)
+            
+            if not contract_result.success:
+                return {
+                    "success": False,
+                    "error": contract_result.error
+                }
+            
+            # Update database
+            if DATABASE_MODELS_AVAILABLE:
+                with self._get_db_session() as db:
+                    pool = db.query(JobPool).filter(
+                        JobPool.pool_id == pool_id
+                    ).first()
+                    
+                    if pool:
+                        pool.status = PoolStatusEnum.COMPLETED.value
+                        pool.completed_at = datetime.now(timezone.utc)
+                        db.commit()
+            
+            return {
+                "success": True,
+                "transaction_id": contract_result.transaction_id,
+                "pool_id": pool_id,
+                "status": "completed"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error completing pool {pool_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def close_pool(
+        self,
+        pool_id: str
+    ) -> Dict[str, Any]:
+        """
+        Close a job pool.
+        
+        Args:
+            pool_id: ID of the job pool to close
+            
+        Returns:
+            Dict containing closure result
+        """
+        try:
+            # Call blockchain function
+            contract_result = await close_pool(pool_id=pool_id)
+            
+            if not contract_result.success:
+                return {
+                    "success": False,
+                    "error": contract_result.error
+                }
+            
+            # Update database
+            if DATABASE_MODELS_AVAILABLE:
+                with self._get_db_session() as db:
+                    pool = db.query(JobPool).filter(
+                        JobPool.pool_id == pool_id
+                    ).first()
+                    
+                    if pool:
+                        pool.status = PoolStatusEnum.CLOSED.value
+                        pool.closed_at = datetime.now(timezone.utc)
+                        db.commit()
+            
+            return {
+                "success": True,
+                "transaction_id": contract_result.transaction_id,
+                "pool_id": pool_id,
+                "status": "closed"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error closing pool {pool_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def withdraw_application(
+        self,
+        pool_id: str
+    ) -> Dict[str, Any]:
+        """
+        Withdraw an application from a job pool.
+        
+        Args:
+            pool_id: ID of the job pool to withdraw from
+            
+        Returns:
+            Dict containing withdrawal result
+        """
+        try:
+            # Call blockchain function
+            contract_result = await withdraw_application(pool_id=pool_id)
+            
+            if not contract_result.success:
+                return {
+                    "success": False,
+                    "error": contract_result.error
+                }
+            
+            # Update database
+            if DATABASE_MODELS_AVAILABLE:
+                with self._get_db_session() as db:
+                    application = db.query(PoolApplication).filter(
+                        PoolApplication.pool_id == pool_id,
+                        PoolApplication.candidate_address == self._get_current_user_address()
+                    ).first()
+                    
+                    if application:
+                        application.status = "withdrawn"
+                        application.withdrawn_at = datetime.now(timezone.utc)
+                        db.commit()
+            
+            return {
+                "success": True,
+                "transaction_id": contract_result.transaction_id,
+                "pool_id": pool_id,
+                "status": "withdrawn"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error withdrawing application from pool {pool_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def calculate_match_score(
+        self,
+        pool_id: str,
+        candidate_address: str
+    ) -> Dict[str, Any]:
+        """
+        Calculate match score for a candidate in a job pool.
+        
+        Args:
+            pool_id: ID of the job pool
+            candidate_address: Address of the candidate
+            
+        Returns:
+            Dict containing match score and details
+        """
+        try:
+            # Call blockchain function
+            result = await calculate_match_score(
+                pool_id=pool_id,
+                candidate_address=candidate_address
+            )
+            
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", "Failed to calculate match score")
+                }
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error calculating match score for pool {pool_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    def _get_current_user_address(self) -> str:
+        """
+        Get current user address (placeholder for authentication).
+        
+        Returns:
+            Current user address
+        """
+        # This would be implemented with proper authentication
+        # For now, return a placeholder
+        return "0.0.123456"
 
 
 # Singleton getters for dependency injection

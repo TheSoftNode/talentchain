@@ -15,6 +15,7 @@ from typing import Dict, Any, List, Optional, Union, Tuple
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from enum import Enum
+from fastapi import Request
 
 # Configure logging first
 logger = logging.getLogger(__name__)
@@ -39,7 +40,9 @@ except ImportError:
     logger.warning("Database models not available, using fallback functionality")
 
 from app.utils.hedera import (
-    get_contract_manager, validate_hedera_address, submit_hcs_message
+    get_contract_manager, validate_hedera_address, submit_hcs_message,
+    queue_proposal, execute_proposal, cancel_proposal,
+    cast_vote_with_signature, batch_execute_proposals
 )
 
 try:
@@ -206,7 +209,8 @@ class GovernanceService:
         values: List[int],
         calldatas: List[str],
         ipfs_hash: str,                # ✅ Added missing ipfs_hash parameter
-        is_emergency: bool = False
+        is_emergency: bool = False,
+        request: Request = None        # Add request parameter for authentication
         # ❌ Removed proposer_address (should be msg.sender in contract)
         # ❌ Removed proposal_type (not in contract)
     ) -> Dict[str, Any]:
@@ -221,6 +225,7 @@ class GovernanceService:
             calldatas: List of encoded function calls
             ipfs_hash: IPFS hash for additional content
             is_emergency: Whether this is an emergency proposal
+            request: FastAPI request object for authentication
             
         Returns:
             Dict containing proposal creation result
@@ -233,9 +238,12 @@ class GovernanceService:
             if len(title) < 10 or len(description) < 50:
                 raise ValueError("Title must be at least 10 characters, description at least 50")
             
-            # Get proposer address from current context (msg.sender equivalent)
-            # This should come from the authenticated user context
-            proposer_address = await self._get_current_user_address()
+            # Get proposer address from request context or fallback to mock
+            if request:
+                proposer_address = self.get_auth_context_from_request(request)
+            else:
+                proposer_address = await self._get_current_user_address()
+                
             if not proposer_address:
                 raise ValueError("No authenticated user found")
             
@@ -415,7 +423,8 @@ class GovernanceService:
         proposal_id: str,
         vote_type: VoteType,           # ✅ Renamed from vote_type to match contract
         reason: str = "",              # ✅ Keep reason parameter
-        signature: Optional[str] = None
+        signature: Optional[str] = None,
+        request: Request = None        # Add request parameter for authentication
         # ❌ Removed voter_address (should be msg.sender in contract)
     ) -> Dict[str, Any]:
         """
@@ -426,13 +435,18 @@ class GovernanceService:
             vote_type: Type of vote (FOR, AGAINST, ABSTAIN)
             reason: Optional reason for the vote
             signature: Optional signature for gasless voting
+            request: FastAPI request object for authentication
             
         Returns:
             Dict containing vote result
         """
         try:
-            # Get voter address from current context (msg.sender equivalent)
-            voter_address = await self._get_current_user_address()
+            # Get voter address from request context or fallback to mock
+            if request:
+                voter_address = self.get_auth_context_from_request(request)
+            else:
+                voter_address = await self._get_current_user_address()
+                
             if not voter_address:
                 raise ValueError("No authenticated user found")
             
@@ -1200,6 +1214,278 @@ class GovernanceService:
         except Exception as e:
             logger.error(f"Error getting total voting power: {str(e)}")
             return 1000000
+
+    # ============ ADDITIONAL GOVERNANCE FUNCTIONS ============
+
+    async def queue_proposal(
+        self,
+        proposal_id: str
+    ) -> Dict[str, Any]:
+        """
+        Queue a proposal for execution.
+        
+        Args:
+            proposal_id: ID of the proposal to queue
+            
+        Returns:
+            Dict containing queuing result
+        """
+        try:
+            # Call blockchain function
+            contract_result = await queue_proposal(proposal_id=proposal_id)
+            
+            if not contract_result.success:
+                return {
+                    "success": False,
+                    "error": contract_result.error
+                }
+            
+            # Update database
+            if DATABASE_MODELS_AVAILABLE:
+                with self._get_db_session() as db:
+                    proposal = db.query(GovernanceProposal).filter(
+                        GovernanceProposal.proposal_id == proposal_id
+                    ).first()
+                    
+                    if proposal:
+                        proposal.status = ProposalStatus.QUEUED.value
+                        proposal.queued_at = datetime.now(timezone.utc)
+                        db.commit()
+            
+            return {
+                "success": True,
+                "transaction_id": contract_result.transaction_id,
+                "proposal_id": proposal_id,
+                "status": "queued"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error queuing proposal {proposal_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def execute_proposal(
+        self,
+        proposal_id: str
+    ) -> Dict[str, Any]:
+        """
+        Execute a queued proposal.
+        
+        Args:
+            proposal_id: ID of the proposal to execute
+            
+        Returns:
+            Dict containing execution result
+        """
+        try:
+            # Call blockchain function
+            contract_result = await execute_proposal(proposal_id=proposal_id)
+            
+            if not contract_result.success:
+                return {
+                    "success": False,
+                    "error": contract_result.error
+                }
+            
+            # Update database
+            if DATABASE_MODELS_AVAILABLE:
+                with self._get_db_session() as db:
+                    proposal = db.query(GovernanceProposal).filter(
+                        GovernanceProposal.proposal_id == proposal_id
+                    ).first()
+                    
+                    if proposal:
+                        proposal.status = ProposalStatus.EXECUTED.value
+                        proposal.executed_at = datetime.now(timezone.utc)
+                        db.commit()
+            
+            return {
+                "success": True,
+                "transaction_id": contract_result.transaction_id,
+                "proposal_id": proposal_id,
+                "status": "executed"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error executing proposal {proposal_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def cancel_proposal(
+        self,
+        proposal_id: str
+    ) -> Dict[str, Any]:
+        """
+        Cancel a proposal.
+        
+        Args:
+            proposal_id: ID of the proposal to cancel
+            
+        Returns:
+            Dict containing cancellation result
+        """
+        try:
+            # Call blockchain function
+            contract_result = await cancel_proposal(proposal_id=proposal_id)
+            
+            if not contract_result.success:
+                return {
+                    "success": False,
+                    "error": contract_result.error
+                }
+            
+            # Update database
+            if DATABASE_MODELS_AVAILABLE:
+                with self._get_db_session() as db:
+                    proposal = db.query(GovernanceProposal).filter(
+                        GovernanceProposal.proposal_id == proposal_id
+                    ).first()
+                    
+                    if proposal:
+                        proposal.status = ProposalStatus.CANCELED.value
+                        proposal.canceled_at = datetime.now(timezone.utc)
+                        db.commit()
+            
+            return {
+                "success": True,
+                "transaction_id": contract_result.transaction_id,
+                "proposal_id": proposal_id,
+                "status": "canceled"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error canceling proposal {proposal_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def cast_vote_with_signature(
+        self,
+        proposal_id: str,
+        vote: int,
+        reason: str,
+        signature: str
+    ) -> Dict[str, Any]:
+        """
+        Cast a vote with signature.
+        
+        Args:
+            proposal_id: ID of the proposal to vote on
+            vote: Vote type (0=Against, 1=For, 2=Abstain)
+            reason: Optional reason for the vote
+            signature: Signature for the vote
+            
+        Returns:
+            Dict containing voting result
+        """
+        try:
+            # Call blockchain function
+            contract_result = await cast_vote_with_signature(
+                proposal_id=proposal_id,
+                vote=vote,
+                reason=reason,
+                signature=signature
+            )
+            
+            if not contract_result.success:
+                return {
+                    "success": False,
+                    "error": contract_result.error
+                }
+            
+            # Update database
+            if DATABASE_MODELS_AVAILABLE:
+                with self._get_db_session() as db:
+                    # Create or update vote record
+                    existing_vote = db.query(GovernanceVote).filter(
+                        GovernanceVote.proposal_id == proposal_id,
+                        GovernanceVote.voter_address == self._get_current_user_address()
+                    ).first()
+                    
+                    if existing_vote:
+                        existing_vote.vote_type = VoteType.FOR.value if vote == 1 else VoteType.AGAINST.value if vote == 0 else VoteType.ABSTAIN.value
+                        existing_vote.reason = reason
+                        existing_vote.updated_at = datetime.now(timezone.utc)
+                    else:
+                        new_vote = GovernanceVote(
+                            proposal_id=proposal_id,
+                            voter_address=self._get_current_user_address(),
+                            vote_type=VoteType.FOR.value if vote == 1 else VoteType.AGAINST.value if vote == 0 else VoteType.ABSTAIN.value,
+                            voting_power=await self._get_voting_power(self._get_current_user_address()),
+                            reason=reason
+                        )
+                        db.add(new_vote)
+                    
+                    db.commit()
+            
+            return {
+                "success": True,
+                "transaction_id": contract_result.transaction_id,
+                "proposal_id": proposal_id,
+                "vote": vote,
+                "reason": reason
+            }
+            
+        except Exception as e:
+            logger.error(f"Error casting vote with signature for proposal {proposal_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def batch_execute_proposals(
+        self,
+        proposal_ids: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Batch execute multiple proposals.
+        
+        Args:
+            proposal_ids: List of proposal IDs to execute
+            
+        Returns:
+            Dict containing batch execution result
+        """
+        try:
+            # Call blockchain function
+            contract_result = await batch_execute_proposals(proposal_ids=proposal_ids)
+            
+            if not contract_result.success:
+                return {
+                    "success": False,
+                    "error": contract_result.error
+                }
+            
+            # Update database
+            if DATABASE_MODELS_AVAILABLE:
+                with self._get_db_session() as db:
+                    proposals = db.query(GovernanceProposal).filter(
+                        GovernanceProposal.proposal_id.in_(proposal_ids)
+                    ).all()
+                    
+                    for proposal in proposals:
+                        proposal.status = ProposalStatus.EXECUTED.value
+                        proposal.executed_at = datetime.now(timezone.utc)
+                    
+                    db.commit()
+            
+            return {
+                "success": True,
+                "transaction_id": contract_result.transaction_id,
+                "executed_proposals": len(proposal_ids)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error batch executing proposals: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
 
 
 # Singleton getter for dependency injection

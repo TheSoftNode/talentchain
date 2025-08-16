@@ -12,7 +12,9 @@ import {
   BookOpen,
   Target,
   TrendingUp,
-  Plus
+  Plus,
+  AlertCircle,
+  Hash
 } from "lucide-react";
 import { Card, CardContent, } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +27,7 @@ import { ContractCreateSkillDialog } from "@/components/skills/contract-create-s
 import { UpdateSkillTokenDialog } from "@/components/skills/update-skill-token-dialog";
 import { ViewSkillTokenDialog } from "@/components/skills/view-skill-token-dialog";
 import { WalletConnectionPrompt } from "@/components/dashboard/wallet-connection-prompt";
+import { apiClient } from "@/lib/api/client";
 import {
   Select,
   SelectContent,
@@ -33,52 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Mock data - will be replaced with real API calls
-const mockSkillTokens: SkillTokenInfo[] = [
-  {
-    tokenId: 1,
-    category: "React Development",
-    level: 8,
-    uri: "ipfs://QmReactSkill123",
-    owner: "0.0.123456"
-  },
-  {
-    tokenId: 2,
-    category: "Smart Contracts",
-    level: 6,
-    uri: "ipfs://QmSolidity456",
-    owner: "0.0.123456"
-  },
-  {
-    tokenId: 3,
-    category: "UI/UX Design",
-    level: 7,
-    uri: "ipfs://QmDesign789",
-    owner: "0.0.123456"
-  },
-  {
-    tokenId: 4,
-    category: "Node.js",
-    level: 9,
-    uri: "ipfs://QmNodeJS321",
-    owner: "0.0.123456"
-  },
-  {
-    tokenId: 5,
-    category: "Python",
-    level: 5,
-    uri: "ipfs://QmPython654",
-    owner: "0.0.123456"
-  },
-  {
-    tokenId: 6,
-    category: "DevOps",
-    level: 4,
-    uri: "ipfs://QmDevOps987",
-    owner: "0.0.123456"
-  }
-];
-
+// Skill categories for filtering
 const skillCategories = [
   "Frontend Development",
   "Backend Development",
@@ -94,267 +52,307 @@ const skillCategories = [
 
 export default function SkillsPage() {
   const { user, isConnected } = useAuth();
-  const [skills, setSkills] = useState<SkillTokenInfo[]>(mockSkillTokens);
+  const [skills, setSkills] = useState<SkillTokenInfo[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [_isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedSkill, setSelectedSkill] = useState<SkillTokenInfo | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [showViewDialog, setShowViewDialog] = useState(false);
 
+  // Load user's skill tokens from blockchain
   useEffect(() => {
-    if (isConnected && user) {
-      fetchUserSkills();
+    if (isConnected && user?.accountId) {
+      loadUserSkills();
     }
-  }, [isConnected, user]);
+  }, [isConnected, user?.accountId]);
 
-  if (!isConnected) {
-    return (
-      <WalletConnectionPrompt
-        title="Connect to Manage Skills"
-        description="Connect your Hedera wallet to create and manage your skill tokens."
-      />
-    );
-  }
+  const loadUserSkills = async () => {
+    if (!user?.accountId) return;
 
-  const fetchUserSkills = async () => {
     setIsLoading(true);
+    setError(null);
+
     try {
-      // TODO: Replace with real API call
-      // const userSkills = await getUserSkillTokens(user.accountId);
-      // setSkills(userSkills);
-    } catch (error) {
-      console.error('Failed to fetch skills:', error);
+      const response = await apiClient.getSkillTokens(user.accountId);
+
+      if (response.success && response.data) {
+        // Transform API response to match frontend format
+        const transformedSkills = response.data.map((skill: any) => ({
+          tokenId: skill.token_id || skill.id,
+          category: skill.skill_name || skill.category,
+          level: skill.level || 1,
+          uri: skill.metadata_uri || skill.uri || "",
+          owner: skill.owner_address || skill.owner || user.accountId,
+          description: skill.description || "",
+          createdAt: skill.created_at || new Date().toISOString()
+        }));
+        setSkills(transformedSkills);
+      } else {
+        setError(response.error || 'Failed to load skills');
+        setSkills([]);
+      }
+    } catch (err) {
+      console.error('Failed to load skills:', err);
+      setError('Failed to load skills from blockchain');
+      setSkills([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getSkillLevelColor = (level: number) => {
-    if (level >= 8) return { bg: "bg-green-100 dark:bg-green-900/30", text: "text-green-700 dark:text-green-300", border: "border-green-200 dark:border-green-800" };
-    if (level >= 6) return { bg: "bg-blue-100 dark:bg-blue-900/30", text: "text-blue-700 dark:text-blue-300", border: "border-blue-200 dark:border-blue-800" };
-    if (level >= 4) return { bg: "bg-yellow-100 dark:bg-yellow-900/30", text: "text-yellow-700 dark:text-yellow-300", border: "border-yellow-200 dark:border-yellow-800" };
-    return { bg: "bg-gray-100 dark:bg-gray-900/30", text: "text-gray-700 dark:text-gray-300", border: "border-gray-200 dark:border-gray-800" };
+  const handleSkillCreated = async (skillData: any) => {
+    // Refresh the skills list after creation
+    await loadUserSkills();
+    setShowCreateDialog(false);
   };
 
-  const getSkillIcon = (category: string) => {
-    const lower = category.toLowerCase();
-    if (lower.includes('react') || lower.includes('frontend')) return <BookOpen className="w-5 h-5" />;
-    if (lower.includes('smart') || lower.includes('contract')) return <Award className="w-5 h-5" />;
-    if (lower.includes('design') || lower.includes('ui')) return <Target className="w-5 h-5" />;
-    return <Trophy className="w-5 h-5" />;
+  const handleSkillUpdated = async (skillData: any) => {
+    // Refresh the skills list after update
+    await loadUserSkills();
+    setShowUpdateDialog(false);
   };
 
+  const handleViewSkill = (skill: SkillTokenInfo) => {
+    setSelectedSkill(skill);
+    setShowViewDialog(true);
+  };
+
+  const handleUpdateSkill = (skill: SkillTokenInfo) => {
+    setSelectedSkill(skill);
+    setShowUpdateDialog(true);
+  };
+
+  // Filter skills based on search and category
   const filteredSkills = skills.filter(skill => {
-    const matchesSearch = skill.category.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === "all" || skill.category.toLowerCase().includes(selectedCategory.toLowerCase());
+    const matchesSearch = skill.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      skill.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === "all" || skill.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const averageLevel = skills.length > 0 ? skills.reduce((acc, skill) => acc + skill.level, 0) / skills.length : 0;
+  if (!isConnected) {
+    return <WalletConnectionPrompt />;
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
-                  Your Skills 🏆
-                </h1>
-                <p className="text-slate-600 dark:text-slate-400">
-                  Manage your blockchain-verified skill tokens
-                </p>
-              </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="flex items-center justify-between"
+      >
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+            My Skills
+          </h1>
+          <p className="text-slate-600 dark:text-slate-400 mt-2">
+            Manage your skill tokens and showcase your expertise
+          </p>
+        </div>
+        <Button
+          onClick={() => setShowCreateDialog(true)}
+          className="bg-hedera-600 hover:bg-hedera-700"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Create Skill Token
+        </Button>
+      </motion.div>
 
-              <ContractCreateSkillDialog />
+      {/* Search and Filter */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+        className="flex flex-col sm:flex-row gap-4"
+      >
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+          <Input
+            placeholder="Search skills..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue placeholder="All Categories" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Categories</SelectItem>
+            {skillCategories.map((category) => (
+              <SelectItem key={category} value={category}>
+                {category}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </motion.div>
+
+      {/* Skills Grid */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+      >
+        {isLoading ? (
+          // Loading state
+          Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-slate-200/50 dark:border-slate-700/50 hover:shadow-lg hover:border-hedera-300/50 dark:hover:border-hedera-700/50 transition-all duration-300">
+              <CardContent className="p-6">
+                <div className="animate-pulse">
+                  <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-4"></div>
+                  <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2 mb-2"></div>
+                  <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : error ? (
+          // Error state
+          <div className="col-span-full text-center py-12">
+            <div className="text-red-600 dark:text-red-400 mb-4">
+              <AlertCircle className="w-12 h-12 mx-auto" />
             </div>
-          </motion.div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-slate-200/50 dark:border-slate-700/50 hover:border-hedera-300/50 dark:hover:border-hedera-700/50">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">Total Skills</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{skills.length}</p>
-                </div>
-                <Trophy className="w-8 h-8 text-blue-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-slate-200/50 dark:border-slate-700/50 hover:border-hedera-300/50 dark:hover:border-hedera-700/50">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">Average Level</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{averageLevel.toFixed(1)}</p>
-                </div>
-                <TrendingUp className="w-8 h-8 text-green-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-slate-200/50 dark:border-slate-700/50 hover:border-hedera-300/50 dark:hover:border-hedera-700/50">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">Expert Level</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {skills.filter(s => s.level >= 8).length}
-                  </p>
-                </div>
-                <Star className="w-8 h-8 text-yellow-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-slate-200/50 dark:border-slate-700/50 hover:border-hedera-300/50 dark:hover:border-hedera-700/50">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">Categories</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {new Set(skills.map(s => s.category)).size}
-                  </p>
-                </div>
-                <Award className="w-8 h-8 text-purple-600" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-8">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              type="text"
-              placeholder="Search skills..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+            <p className="text-slate-600 dark:text-slate-400 mb-4">{error}</p>
+            <Button onClick={loadUserSkills} variant="outline">
+              Try Again
+            </Button>
           </div>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full sm:w-48">
-              <Filter className="w-4 h-4 mr-2" />
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {skillCategories.map((category) => (
-                <SelectItem key={category} value={category.toLowerCase()}>
-                  {category}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Skills Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredSkills.map((skill, index) => {
-            const colorConfig = getSkillLevelColor(skill.level);
-
-            return (
-              <motion.div
-                key={skill.tokenId}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-              >
-                <Card className="group hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-slate-200/50 dark:border-slate-700/50 hover:border-hedera-300/50 dark:hover:border-hedera-700/50">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-12 h-12 ${colorConfig.bg} ${colorConfig.border} border rounded-lg flex items-center justify-center`}>
-                          <div className={colorConfig.text}>
-                            {getSkillIcon(skill.category)}
-                          </div>
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-slate-900 dark:text-white group-hover:text-hedera-600 transition-colors">
-                            {skill.category}
-                          </h3>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">
-                            Token #{skill.tokenId}
-                          </p>
-                        </div>
-                      </div>
-                      <ArrowUpRight className="w-5 h-5 text-slate-400 group-hover:text-hedera-600 transition-colors" />
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-slate-600 dark:text-slate-400">Skill Level</span>
-                        <Badge className={`${colorConfig.bg} ${colorConfig.text} border-0`}>
-                          Level {skill.level}
-                        </Badge>
-                      </div>
-
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-slate-600 dark:text-slate-400">Progress</span>
-                          <span className="text-slate-900 dark:text-white">{skill.level * 10}%</span>
-                        </div>
-                        <Progress value={skill.level * 10} className="h-2" />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-2 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                      <UpdateSkillTokenDialog
-                        skill={skill}
-                        onSkillUpdated={(updatedSkill) => {
-                          setSkills(prev => prev.map(s =>
-                            s.tokenId === updatedSkill.tokenId ? updatedSkill : s
-                          ));
-                        }}
-                      />
-                      <ViewSkillTokenDialog skill={skill} />
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            );
-          })}
-        </div>
-
-        {filteredSkills.length === 0 && (
-          <div className="text-center py-12">
-            <Trophy className="w-16 h-16 mx-auto text-slate-400 mb-4" />
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-              No skills found
-            </h3>
-            <p className="text-slate-600 dark:text-slate-400 mb-6">
+        ) : filteredSkills.length === 0 ? (
+          // Empty state
+          <div className="col-span-full text-center py-12">
+            <div className="text-slate-400 dark:text-slate-500 mb-4">
+              <Trophy className="w-12 h-12 mx-auto" />
+            </div>
+            <p className="text-slate-600 dark:text-slate-400 mb-4">
               {searchTerm || selectedCategory !== "all"
-                ? "Try adjusting your search or filters"
-                : "Create your first skill token to get started"
-              }
+                ? "No skills match your search criteria"
+                : "You haven't created any skill tokens yet"}
             </p>
             {!searchTerm && selectedCategory === "all" && (
-              <ContractCreateSkillDialog
-                triggerButton={
-                  <Button className="bg-hedera-600 hover:bg-hedera-700">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Your First Skill
-                  </Button>
-                }
-                onSkillCreated={(skillData) => {
-                  console.log('New skill created:', skillData);
-                  // In a real app, this would refresh the skills list
-                }}
-              />
+              <Button onClick={() => setShowCreateDialog(true)} className="bg-hedera-600 hover:bg-hedera-700">
+                <Plus className="w-4 h-4 mr-2" />
+                Create Your First Skill Token
+              </Button>
             )}
           </div>
+        ) : (
+          // Skills grid
+          filteredSkills.map((skill, index) => (
+            <motion.div
+              key={skill.tokenId}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 * index }}
+            >
+              <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-slate-200/50 dark:border-slate-700/50 hover:shadow-lg hover:border-hedera-300/50 dark:hover:border-hedera-700/50 transition-all duration-300 h-full">
+                <CardContent className="p-6 h-full flex flex-col">
+                  {/* Skill Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-hedera-100 dark:bg-hedera-900/30 rounded-lg">
+                        <Trophy className="w-5 h-5 text-hedera-600 dark:text-hedera-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-slate-900 dark:text-slate-100">
+                          {skill.category}
+                        </h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          Token #{skill.tokenId}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge className="bg-hedera-100 text-hedera-700 dark:bg-hedera-900/30 dark:text-hedera-300">
+                      Level {skill.level}
+                    </Badge>
+                  </div>
+
+                  {/* Skill Description */}
+                  {skill.description && (
+                    <p className="text-slate-600 dark:text-slate-400 text-sm mb-4 flex-1">
+                      {skill.description}
+                    </p>
+                  )}
+
+                  {/* Skill Level Progress */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <span className="text-slate-600 dark:text-slate-400">Skill Level</span>
+                      <span className="font-medium text-slate-900 dark:text-slate-100">
+                        {skill.level}/10
+                      </span>
+                    </div>
+                    <Progress value={skill.level * 10} className="h-2" />
+                  </div>
+
+                  {/* Skill Metadata */}
+                  {skill.uri && (
+                    <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                      <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                        <Hash className="w-4 h-4" />
+                        <span className="truncate">{skill.uri}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2 mt-auto">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleViewSkill(skill)}
+                      className="flex-1"
+                    >
+                      <BookOpen className="w-4 h-4 mr-2" />
+                      View
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleUpdateSkill(skill)}
+                      className="flex-1"
+                    >
+                      <Target className="w-4 h-4 mr-2" />
+                      Update
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))
         )}
-      </div>
+      </motion.div>
+
+      {/* Dialogs */}
+      <ContractCreateSkillDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        onSkillCreated={handleSkillCreated}
+      />
+
+      {selectedSkill && (
+        <>
+          <UpdateSkillTokenDialog
+            open={showUpdateDialog}
+            onOpenChange={setShowUpdateDialog}
+            skillToken={selectedSkill}
+            onSkillUpdated={handleSkillUpdated}
+          />
+
+          <ViewSkillTokenDialog
+            open={showViewDialog}
+            onOpenChange={setShowViewDialog}
+            skillToken={selectedSkill}
+          />
+        </>
+      )}
     </div>
   );
 }

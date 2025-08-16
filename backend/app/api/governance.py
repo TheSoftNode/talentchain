@@ -29,6 +29,7 @@ from app.models.governance_schemas import (
 from app.models.common_schemas import ErrorResponse, PaginatedResponse
 from app.services.governance import get_governance_service, GovernanceService, ProposalType, VoteType
 from app.utils.hedera import validate_hedera_address
+from app.api.deps import get_governance_user, AuthContext
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -44,12 +45,15 @@ router = APIRouter(tags=["governance"])
     status_code=status.HTTP_201_CREATED,
     responses={
         400: {"model": ErrorResponse, "description": "Bad request"},
+        401: {"model": ErrorResponse, "description": "Authentication required"},
         422: {"model": ErrorResponse, "description": "Validation error"},
         500: {"model": ErrorResponse, "description": "Internal server error"}
     }
 )
 async def create_proposal(
-    request: ContractCreateProposalRequest
+    request: ContractCreateProposalRequest,
+    auth: AuthContext = Depends(get_governance_user),
+    fastapi_request: Request = None
 ) -> Dict[str, Any]:
     """
     Create a new governance proposal - matches Governance.createProposal() exactly.
@@ -67,7 +71,8 @@ async def create_proposal(
             targets=request.targets,
             values=request.values,
             calldatas=request.calldatas,
-            ipfs_hash=request.ipfs_hash
+            ipfs_hash=request.ipfs_hash,
+            request=fastapi_request
         )
         
         if not result["success"]:
@@ -92,12 +97,15 @@ async def create_proposal(
     status_code=status.HTTP_201_CREATED,
     responses={
         400: {"model": ErrorResponse, "description": "Bad request"},
+        401: {"model": ErrorResponse, "description": "Authentication required"},
         422: {"model": ErrorResponse, "description": "Validation error"},
         500: {"model": ErrorResponse, "description": "Internal server error"}
     }
 )
 async def cast_vote(
-    request: ContractCastVoteRequest
+    request: ContractCastVoteRequest,
+    auth: AuthContext = Depends(get_governance_user),
+    fastapi_request: Request = None
 ) -> Dict[str, Any]:
     """
     Cast a vote on a proposal - matches Governance.castVote() exactly.
@@ -106,6 +114,8 @@ async def cast_vote(
     """
     try:
         governance_service = get_governance_service()
+        
+
         
         # Convert vote integer to VoteType enum
         vote_type_map = {
@@ -118,7 +128,8 @@ async def cast_vote(
         result = await governance_service.cast_vote(
             proposal_id=str(request.proposal_id),
             vote_type=vote_type,
-            reason=request.reason
+            reason=request.reason,
+            request=fastapi_request
         )
         
         if not result["success"]:

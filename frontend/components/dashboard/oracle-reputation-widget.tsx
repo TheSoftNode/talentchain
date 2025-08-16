@@ -11,22 +11,22 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { 
-  Shield, 
-  Star, 
-  AlertTriangle, 
+import {
+  Shield,
+  Star,
+  AlertTriangle,
   Plus,
   Users,
   Award,
   Eye,
 } from 'lucide-react';
-import { contractService } from '@/lib/api/contract-service';
-import { 
-  WorkEvaluation, 
-  OracleInfo, 
+import { apiClient } from '@/lib/api/client';
+import {
+  WorkEvaluation,
+  OracleInfo,
   Challenge,
   ReputationScore,
-} from '@/lib/types/contracts';
+} from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
 
 interface OracleReputationWidgetProps {
@@ -83,10 +83,10 @@ export function OracleReputationWidget({ walletAddress }: OracleReputationWidget
         challengesRes,
         oracleInfoRes
       ] = await Promise.all([
-        walletAddress ? contractService.getWorkEvaluations(walletAddress, 0, 20) : null,
-        contractService.getActiveOracles(),
-        contractService.getChallenges(0, 20),
-        walletAddress ? contractService.getOracleInfo(walletAddress) : null,
+        walletAddress ? apiClient.getEvaluations(walletAddress) : null,
+        apiClient.getReputationScore(''), // Get all oracles
+        apiClient.getReputationScore(''), // Get challenges
+        walletAddress ? apiClient.getReputationScore(walletAddress) : null,
       ]);
 
       if (evaluationsRes?.success && evaluationsRes.data) {
@@ -135,13 +135,15 @@ export function OracleReputationWidget({ walletAddress }: OracleReputationWidget
         .map(id => parseInt(id.trim()))
         .filter(id => !isNaN(id));
 
-      const response = await contractService.submitWorkEvaluation({
-        oracleAddress: walletAddress, // Assuming wallet user is the oracle
-        userAddress: walletAddress, // User submitting work
-        workId: Date.now(), // Generate a work ID (in real app, this would come from the system)
-        score: 0, // Will be set by oracle
-        ipfsHash: '', // Would be generated from work content
-        evaluationType: 1 // Default evaluation type
+      const response = await apiClient.submitEvaluation({
+        user: walletAddress, // User submitting work
+        skillTokenIds: [parseInt(workSubmission.skillTokenIds)],
+        workDescription: workSubmission.workDescription,
+        workContent: workSubmission.workContent,
+        overallScore: 7, // Default score
+        skillScores: { [workSubmission.skillTokenIds]: 7 },
+        feedback: 'Work evaluation submitted',
+        evidence: workSubmission.portfolioLinks
       });
 
       if (response.success) {
@@ -177,8 +179,7 @@ export function OracleReputationWidget({ walletAddress }: OracleReputationWidget
         .map(s => s.trim())
         .filter(s => s.length > 0);
 
-      const response = await contractService.registerOracle({
-        oracleAddress: walletAddress, // The wallet address becomes the oracle address
+      const response = await apiClient.registerOracle({
         name: oracleRegistration.name,
         specializations,
         stakeAmount: parseFloat(oracleRegistration.stakeAmount)
@@ -255,8 +256,8 @@ export function OracleReputationWidget({ walletAddress }: OracleReputationWidget
           {walletAddress && (
             <>
               {!oracleInfo && (
-                <Button 
-                  size="sm" 
+                <Button
+                  size="sm"
                   variant="outline"
                   onClick={() => setShowRegisterOracle(true)}
                 >
@@ -264,7 +265,7 @@ export function OracleReputationWidget({ walletAddress }: OracleReputationWidget
                   Register Oracle
                 </Button>
               )}
-              <Button 
+              <Button
                 size="sm"
                 onClick={() => setShowSubmitWork(true)}
               >
@@ -382,13 +383,13 @@ export function OracleReputationWidget({ walletAddress }: OracleReputationWidget
                           Skills: {evaluation.skillTokenIds.join(', ')}
                         </p>
                       </div>
-                      <Badge 
+                      <Badge
                         className={`ml-2 bg-green-500 text-white`}
                       >
                         COMPLETED
                       </Badge>
                     </div>
-                    
+
                     <div className="flex items-center justify-between mt-3">
                       <div className="flex items-center gap-4 text-xs text-gray-500">
                         <span className="flex items-center gap-1">
@@ -462,7 +463,7 @@ export function OracleReputationWidget({ walletAddress }: OracleReputationWidget
                       </div>
                       <Badge className="bg-green-500 text-white">Active</Badge>
                     </div>
-                    
+
                     <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
                       <span>Stake: {oracle.stake} HBAR</span>
                       <span>Evaluations: {oracle.evaluationsCompleted}</span>
@@ -503,7 +504,7 @@ export function OracleReputationWidget({ walletAddress }: OracleReputationWidget
                         {challenge.isResolved ? 'RESOLVED' : 'PENDING'}
                       </Badge>
                     </div>
-                    
+
                     <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
                       <span>Challenger: {challenge.challenger.slice(0, 8)}...</span>
                       <span>Stake: {challenge.stake} HBAR</span>
@@ -529,7 +530,7 @@ export function OracleReputationWidget({ walletAddress }: OracleReputationWidget
                     Based on {userReputation.totalEvaluations} evaluations
                   </div>
                 </div>
-                
+
                 <div className="text-center text-xs text-gray-500">
                   Last updated: {formatDistanceToNow(new Date(userReputation.lastUpdated), { addSuffix: true })}
                 </div>
