@@ -106,12 +106,19 @@ export interface CreateJobPoolRequest {
 }
 
 export interface ApplyToPoolRequest {
-    poolId: number;
-    applicantAddress: string;
-    expectedSalary: number;
-    availabilityDate: number;
-    coverLetter: string;
-    stakeAmount: number;
+    pool_id: string;
+    candidate_address: string;
+    cover_letter: string;
+    resume_uri: string;
+    stake_amount: number;
+}
+
+export interface WorkEvaluationRequest {
+    token_id: string;
+    work_description: string;
+    quality_score: number;
+    evidence_uri: string;
+    evaluator_address: string;
 }
 
 // Governance Types
@@ -413,7 +420,240 @@ export class TalentChainApiClient {
         return this.makeRequest<ApiResponse>(endpoint);
     }
 
-    // Pools Methods
+    // Enhanced Skills Methods - Missing from original
+    async endorseSkillToken(tokenId: string, endorsementData: string): Promise<ApiResponse> {
+        const request = { token_id: tokenId, endorsement_data: endorsementData };
+        return this.makeRequest<ApiResponse>('/api/v1/skills/endorse', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    async renewSkillToken(tokenId: string, newExpiryDate: number): Promise<ApiResponse> {
+        const request = { token_id: tokenId, new_expiry_date: newExpiryDate };
+        return this.makeRequest<ApiResponse>('/api/v1/skills/renew', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    async revokeSkillToken(tokenId: string, reason: string): Promise<ApiResponse> {
+        const request = { token_id: tokenId, reason };
+        return this.makeRequest<ApiResponse>('/api/v1/skills/revoke', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    async getSkillEndorsements(tokenId: string): Promise<ApiResponse> {
+        const endpoint = `/api/v1/skills/${tokenId}/endorsements`;
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async markExpiredTokens(tokenIds: string[]): Promise<ApiResponse> {
+        const request = { token_ids: tokenIds };
+        return this.makeRequest<ApiResponse>('/api/v1/skills/mark-expired', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    async getTokensByCategory(category: string, limit: number = 50): Promise<ApiResponse> {
+        const endpoint = `/api/v1/skills/category/${category}?limit=${limit}`;
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getTotalSkillsByCategory(category: string): Promise<ApiResponse> {
+        const endpoint = `/api/v1/skills/category/${category}/total`;
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async batchCreateSkillTokens(requests: CreateSkillTokenRequest[]): Promise<ApiResponse> {
+        return this.makeRequest<ApiResponse>('/api/v1/skills/batch-create', {
+            method: 'POST',
+            body: JSON.stringify({ requests }),
+        });
+    }
+
+    async submitWorkEvaluation(request: WorkEvaluationRequest): Promise<ApiResponse> {
+        return this.makeRequest<ApiResponse>('/api/v1/skills/work-evaluation', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    // Enhanced Reputation Methods - Missing from original
+    async challengeEvaluation(evaluationId: string, reason: string, stakeAmount: number): Promise<ApiResponse> {
+        const request = { evaluation_id: evaluationId, reason, stake_amount: stakeAmount };
+        return this.makeRequest<ApiResponse>('/api/v1/reputation/challenge', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    async resolveChallenge(challengeId: string, resolution: string): Promise<ApiResponse> {
+        const request = { challenge_id: challengeId, resolution };
+        return this.makeRequest<ApiResponse>('/api/v1/reputation/resolve-challenge', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    async slashOracle(oracleAddress: string, reason: string): Promise<ApiResponse> {
+        const request = { oracle_address: oracleAddress, reason };
+        return this.makeRequest<ApiResponse>('/api/v1/reputation/slash-oracle', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    async withdrawOracleStake(oracleAddress: string): Promise<ApiResponse> {
+        const request = { oracle_address: oracleAddress };
+        return this.makeRequest<ApiResponse>('/api/v1/reputation/withdraw-stake', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    async getOracleInfo(oracleAddress: string): Promise<ApiResponse> {
+        const endpoint = `/api/v1/reputation/oracle/${oracleAddress}`;
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getActiveOracles(): Promise<ApiResponse> {
+        const endpoint = '/api/v1/reputation/oracles/active';
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getCategoryScore(userAddress: string, category: string): Promise<ApiResponse> {
+        const endpoint = `/api/v1/reputation/category/${userAddress}/${category}`;
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getWorkEvaluation(evaluationId: string): Promise<ApiResponse> {
+        const endpoint = `/api/v1/reputation/evaluation/${evaluationId}`;
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getUserEvaluations(userAddress: string): Promise<ApiResponse> {
+        const endpoint = `/api/v1/reputation/user/${userAddress}/evaluations`;
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getGlobalStats(): Promise<ApiResponse> {
+        const endpoint = '/api/v1/reputation/stats/global';
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async submitForConsensus(evaluationId: string): Promise<ApiResponse> {
+        const request = { evaluation_id: evaluationId };
+        return this.makeRequest<ApiResponse>('/api/v1/reputation/consensus/submit', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    async voteOnConsensus(consensusId: string, vote: number, reason?: string): Promise<ApiResponse> {
+        const request = { consensus_id: consensusId, vote, reason };
+        return this.makeRequest<ApiResponse>('/api/v1/reputation/consensus/vote', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    async finalizeConsensus(consensusId: string): Promise<ApiResponse> {
+        const request = { consensus_id: consensusId };
+        return this.makeRequest<ApiResponse>('/api/v1/reputation/consensus/finalize', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    // Enhanced Governance Methods - Missing from original
+    async queueProposal(proposalId: string): Promise<ApiResponse> {
+        const request = { proposal_id: proposalId };
+        return this.makeRequest<ApiResponse>('/api/v1/governance/queue-proposal', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    async executeProposal(proposalId: string): Promise<ApiResponse> {
+        const request = { proposal_id: proposalId };
+        return this.makeRequest<ApiResponse>('/api/v1/governance/execute-proposal', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    async cancelProposal(proposalId: string): Promise<ApiResponse> {
+        const request = { proposal_id: proposalId };
+        return this.makeRequest<ApiResponse>('/api/v1/governance/cancel-proposal', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    async getProposalStatus(proposalId: string): Promise<ApiResponse> {
+        const endpoint = `/api/v1/governance/proposal/${proposalId}/status`;
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getVoteReceipt(proposalId: string, voter: string): Promise<ApiResponse> {
+        const endpoint = `/api/v1/governance/proposal/${proposalId}/vote-receipt/${voter}`;
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getQuorum(): Promise<ApiResponse> {
+        const endpoint = '/api/v1/governance/quorum';
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getVotingDelay(): Promise<ApiResponse> {
+        const endpoint = '/api/v1/governance/voting-delay';
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getVotingPeriod(): Promise<ApiResponse> {
+        const endpoint = '/api/v1/governance/voting-period';
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getProposalThreshold(): Promise<ApiResponse> {
+        const endpoint = '/api/v1/governance/proposal-threshold';
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getAllProposals(): Promise<ApiResponse> {
+        const endpoint = '/api/v1/governance/proposals/all';
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getActiveProposals(): Promise<ApiResponse> {
+        const endpoint = '/api/v1/governance/proposals/active';
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async canExecute(proposalId: string): Promise<ApiResponse> {
+        const endpoint = `/api/v1/governance/proposal/${proposalId}/can-execute`;
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async hasVoted(proposalId: string, voter: string): Promise<ApiResponse> {
+        const endpoint = `/api/v1/governance/proposal/${proposalId}/has-voted/${voter}`;
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    // Enhanced Pools Methods - Missing from original
+    async selectCandidate(poolId: string, candidateAddress: string): Promise<ApiResponse> {
+        const request = { pool_id: poolId, candidate: candidateAddress };
+        return this.makeRequest<ApiResponse>('/api/v1/pools/select-candidate', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    // Original Pools Methods
     async createJobPool(request: CreateJobPoolRequest): Promise<ApiResponse> {
         return this.makeRequest<ApiResponse>('/api/v1/pools/create-pool', {
             method: 'POST',
@@ -440,6 +680,55 @@ export class TalentChainApiClient {
 
     async getPoolApplications(poolId: string): Promise<ApiResponse> {
         const endpoint = `/api/v1/pools/${poolId}/applications`;
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async completePool(poolId: string): Promise<ApiResponse> {
+        const request = { pool_id: poolId };
+        return this.makeRequest<ApiResponse>('/api/v1/pools/complete', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    async closePool(poolId: string): Promise<ApiResponse> {
+        const request = { pool_id: poolId };
+        return this.makeRequest<ApiResponse>('/api/v1/pools/close', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    async withdrawApplication(poolId: string): Promise<ApiResponse> {
+        const request = { pool_id: poolId };
+        return this.makeRequest<ApiResponse>('/api/v1/pools/withdraw', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        });
+    }
+
+    async calculateMatchScore(poolId: string, candidateAddress: string): Promise<ApiResponse> {
+        const endpoint = `/api/v1/pools/${poolId}/match-score/${candidateAddress}`;
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getPoolMetrics(poolId: string): Promise<ApiResponse> {
+        const endpoint = `/api/v1/pools/${poolId}/metrics`;
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getTalentPoolGlobalStats(): Promise<ApiResponse> {
+        const endpoint = '/api/v1/pools/stats/global';
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getActivePoolsCount(): Promise<ApiResponse> {
+        const endpoint = '/api/v1/pools/stats/active-count';
+        return this.makeRequest<ApiResponse>(endpoint);
+    }
+
+    async getTotalPoolsCount(): Promise<ApiResponse> {
+        const endpoint = '/api/v1/pools/stats/total-count';
         return this.makeRequest<ApiResponse>(endpoint);
     }
 }

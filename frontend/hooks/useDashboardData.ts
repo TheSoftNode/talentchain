@@ -15,6 +15,7 @@ import { useAuth } from './useAuth';
 import { useDashboardRealtimeSync } from './useRealTimeUpdates';
 
 interface UseDashboardDataReturn {
+  // Basic dashboard data
   stats: DashboardStats | null;
   skillTokens: SkillTokenInfo[];
   jobPools: JobPoolInfo[];
@@ -22,6 +23,77 @@ interface UseDashboardDataReturn {
   error: string | null;
   refetch: () => Promise<void>;
   lastUpdated: Date | null;
+
+  // Enhanced Skills functionality
+  createSkillToken: (data: any) => Promise<TransactionResult>;
+  updateSkillLevel: (tokenId: number, data: any) => Promise<TransactionResult>;
+  endorseSkillToken: (tokenId: string, endorsementData: string) => Promise<TransactionResult>;
+  renewSkillToken: (tokenId: string, newExpiryDate: number) => Promise<TransactionResult>;
+  revokeSkillToken: (tokenId: string, reason: string) => Promise<TransactionResult>;
+  getSkillEndorsements: (tokenId: string) => Promise<any[]>;
+  markExpiredTokens: (tokenIds: string[]) => Promise<TransactionResult>;
+  getTokensByCategory: (category: string, limit?: number) => Promise<any[]>;
+  getTotalSkillsByCategory: (category: string) => Promise<number>;
+  isLoadingSkills: boolean;
+  skillsError: string | null;
+
+  // Enhanced Job Pools functionality
+  createJobPool: (data: any) => Promise<TransactionResult>;
+  applyToPool: (poolId: number, skillTokenIds: number[]) => Promise<TransactionResult>;
+  leavePool: (poolId: number) => Promise<TransactionResult>;
+  selectCandidate: (poolId: string, candidateAddress: string) => Promise<TransactionResult>;
+  completePool: (poolId: string) => Promise<TransactionResult>;
+  closePool: (poolId: string) => Promise<TransactionResult>;
+  calculateMatchScore: (poolId: string, candidateAddress: string) => Promise<number>;
+  getPoolMetrics: (poolId: string) => Promise<any>;
+  getTalentPoolGlobalStats: () => Promise<any>;
+  getActivePoolsCount: () => Promise<number>;
+  getTotalPoolsCount: () => Promise<number>;
+  isLoadingJobs: boolean;
+  jobsError: string | null;
+
+  // Enhanced Reputation functionality
+  reputation: any;
+  history: any[];
+  isLoadingReputation: boolean;
+  reputationError: string | null;
+  registerOracle: (stakeAmount: number, categories: string[]) => Promise<TransactionResult>;
+  submitEvaluation: (userAddress: string, category: string, score: number, evidence: string) => Promise<TransactionResult>;
+  challengeEvaluation: (evaluationId: string, reason: string, stakeAmount: number) => Promise<TransactionResult>;
+  resolveChallenge: (challengeId: string, resolution: string) => Promise<TransactionResult>;
+  slashOracle: (oracleAddress: string, reason: string) => Promise<TransactionResult>;
+  withdrawOracleStake: (oracleAddress: string) => Promise<TransactionResult>;
+  getOracleInfo: (oracleAddress: string) => Promise<any>;
+  getActiveOracles: () => Promise<any[]>;
+  getCategoryScore: (userAddress: string, category: string) => Promise<number>;
+  getWorkEvaluation: (evaluationId: string) => Promise<any>;
+  getUserEvaluations: (userAddress: string) => Promise<any[]>;
+  getGlobalStats: () => Promise<any>;
+
+  // Enhanced Governance functionality
+  proposals: any[];
+  activeProposals: any[];
+  isLoadingGovernance: boolean;
+  governanceError: string | null;
+  createProposal: (data: any) => Promise<TransactionResult>;
+  castVote: (data: any) => Promise<TransactionResult>;
+  delegateVotingPower: (delegatee: string) => Promise<TransactionResult>;
+  undelegateVotingPower: () => Promise<TransactionResult>;
+  getProposal: (id: string) => Promise<any>;
+  getVotingPower: (address: string) => Promise<any>;
+  getProposalStatus: (proposalId: string) => Promise<string>;
+  getVoteReceipt: (proposalId: string, voter: string) => Promise<any>;
+  getQuorum: () => Promise<number>;
+  getVotingDelay: () => Promise<number>;
+  getVotingPeriod: () => Promise<number>;
+  getProposalThreshold: () => Promise<number>;
+  getAllProposals: () => Promise<any[]>;
+  getActiveProposals: () => Promise<any[]>;
+  canExecute: (proposalId: string) => Promise<boolean>;
+  hasVoted: (proposalId: string, voter: string) => Promise<boolean>;
+  queueProposal: (proposalId: string) => Promise<TransactionResult>;
+  executeProposal: (proposalId: string) => Promise<TransactionResult>;
+  cancelProposal: (proposalId: string) => Promise<TransactionResult>;
 }
 
 interface UseSkillTokensReturn {
@@ -64,18 +136,18 @@ interface UseReputationReturn {
   isLoading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
-  submitWorkEvaluation: (data: any) => Promise<TransactionResult>;
-  getReputationScore: (userAddress: string) => Promise<any>;
-  getCategoryScore: (userAddress: string, category: string) => Promise<any>;
-  getWorkEvaluation: (evaluationId: string) => Promise<any>;
-  getUserEvaluations: (userAddress: string) => Promise<any[]>;
-  getGlobalStats: () => Promise<any>;
-  registerOracle: (data: any) => Promise<TransactionResult>;
+  registerOracle: (stakeAmount: number, categories: string[]) => Promise<TransactionResult>;
+  submitEvaluation: (userAddress: string, category: string, score: number, evidence: string) => Promise<TransactionResult>;
+  challengeEvaluation: (evaluationId: string, reason: string, stakeAmount: number) => Promise<TransactionResult>;
   resolveChallenge: (challengeId: string, resolution: string) => Promise<TransactionResult>;
   slashOracle: (oracleAddress: string, reason: string) => Promise<TransactionResult>;
   withdrawOracleStake: (oracleAddress: string) => Promise<TransactionResult>;
-  getOraclePerformance: (oracleAddress: string) => Promise<any>;
-  updateOracleStatus: (oracleAddress: string, isActive: boolean, reason: string) => Promise<TransactionResult>;
+  getOracleInfo: (oracleAddress: string) => Promise<any>;
+  getActiveOracles: () => Promise<any[]>;
+  getCategoryScore: (userAddress: string, category: string) => Promise<number>;
+  getWorkEvaluation: (evaluationId: string) => Promise<any>;
+  getUserEvaluations: (userAddress: string) => Promise<any[]>;
+  getGlobalStats: () => Promise<any>;
 }
 
 interface UseGovernanceReturn {
@@ -117,6 +189,354 @@ export function useDashboardData(): UseDashboardDataReturn {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  // Enhanced functionality from the other hooks
+  const {
+    // Skills
+    createSkillToken,
+    updateSkillLevel,
+    endorseSkillToken,
+    renewSkillToken,
+    revokeSkillToken,
+    getSkillEndorsements,
+    markExpiredTokens,
+    getTokensByCategory,
+    getTotalSkillsByCategory,
+    isLoading: isLoadingSkills,
+    error: skillsError,
+    refetch: fetchSkillTokens
+  } = useSkillTokens();
+
+  const {
+    // Job Pools
+    createJobPool,
+    applyToPool,
+    leavePool,
+    selectCandidate,
+    completePool,
+    closePool,
+    calculateMatchScore,
+    getPoolMetrics,
+    getGlobalStats: getTalentPoolGlobalStats,
+    getActivePoolsCount,
+    getTotalPoolsCount,
+    refetch: fetchJobPools,
+    isLoading: isLoadingJobs,
+    error: jobsError
+  } = useJobPools();
+
+  const {
+    // Reputation
+    reputation,
+    history,
+    isLoading: isLoadingReputation,
+    error: reputationError,
+    registerOracle,
+    submitEvaluation,
+    challengeEvaluation,
+    resolveChallenge,
+    slashOracle,
+    withdrawOracleStake,
+    getOracleInfo,
+    getActiveOracles,
+    getCategoryScore,
+    getWorkEvaluation,
+    getUserEvaluations,
+    getGlobalStats,
+    refetch: fetchReputation
+  } = useReputation();
+
+  // Governance functionality - implement directly since useGovernance doesn't exist
+  const [proposals, setProposals] = useState<any[]>([]);
+  const [activeProposals, setActiveProposals] = useState<any[]>([]);
+  const [isLoadingGovernance, setIsLoadingGovernance] = useState(false);
+  const [governanceError, setGovernanceError] = useState<string | null>(null);
+
+  const fetchGovernanceData = useCallback(async () => {
+    if (!isConnected || !user?.accountId) {
+      return;
+    }
+
+    setIsLoadingGovernance(true);
+    setGovernanceError(null);
+
+    try {
+      const [proposalsResponse, votingPowerResponse] = await Promise.all([
+        apiClient.getProposals(1, 50),
+        apiClient.getVotingPower(user.accountId)
+      ]);
+
+      if (proposalsResponse.success && proposalsResponse.data) {
+        setProposals(proposalsResponse.data.items || []);
+        setActiveProposals(proposalsResponse.data.items?.filter((p: any) => p.status === 'active') || []);
+      }
+
+      if (votingPowerResponse.success && votingPowerResponse.data) {
+        // Handle voting power data
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch governance data';
+      setGovernanceError(errorMessage);
+      console.error('Governance fetch error:', err);
+    } finally {
+      setIsLoadingGovernance(false);
+    }
+  }, [isConnected, user?.accountId]);
+
+  const createProposal = useCallback(async (data: any): Promise<TransactionResult> => {
+    try {
+      const response = await apiClient.createProposal(data);
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to create proposal');
+      }
+    } catch (error) {
+      console.error('Error creating proposal:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, []);
+
+  const castVote = useCallback(async (data: any): Promise<TransactionResult> => {
+    try {
+      const response = await apiClient.castVote(data);
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to cast vote');
+      }
+    } catch (error) {
+      console.error('Error casting vote:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, []);
+
+  const delegateVotingPower = useCallback(async (delegatee: string): Promise<TransactionResult> => {
+    try {
+      const response = await apiClient.delegateVotingPower({ delegatee });
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to delegate voting power');
+      }
+    } catch (error) {
+      console.error('Error delegating voting power:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, []);
+
+  const undelegateVotingPower = useCallback(async (): Promise<TransactionResult> => {
+    try {
+      const response = await apiClient.undelegateVotingPower();
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to undelegate voting power');
+      }
+    } catch (error) {
+      console.error('Error undeleting voting power:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, []);
+
+  const getProposal = useCallback(async (id: string): Promise<any> => {
+    try {
+      const response = await apiClient.getProposal(id);
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting proposal:', error);
+      return null;
+    }
+  }, []);
+
+  const getVotingPower = useCallback(async (address: string): Promise<any> => {
+    try {
+      const response = await apiClient.getVotingPower(address);
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting voting power:', error);
+      return null;
+    }
+  }, []);
+
+  // Add remaining governance methods
+  const queueProposal = useCallback(async (proposalId: string): Promise<TransactionResult> => {
+    try {
+      const response = await apiClient.queueProposal(proposalId);
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to queue proposal');
+      }
+    } catch (error) {
+      console.error('Error queuing proposal:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, []);
+
+  const executeProposal = useCallback(async (proposalId: string): Promise<TransactionResult> => {
+    try {
+      const response = await apiClient.executeProposal(proposalId);
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to execute proposal');
+      }
+    } catch (error) {
+      console.error('Error executing proposal:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, []);
+
+  const cancelProposal = useCallback(async (proposalId: string): Promise<TransactionResult> => {
+    try {
+      const response = await apiClient.cancelProposal(proposalId);
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to cancel proposal');
+      }
+    } catch (error) {
+      console.error('Error canceling proposal:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, []);
+
+  const getProposalStatus = useCallback(async (proposalId: string): Promise<string> => {
+    try {
+      const response = await apiClient.getProposalStatus(proposalId);
+      if (response.success && response.data) {
+        return response.data.status || 'unknown';
+      }
+      return 'unknown';
+    } catch (error) {
+      console.error('Error getting proposal status:', error);
+      return 'unknown';
+    }
+  }, []);
+
+  const getVoteReceipt = useCallback(async (proposalId: string, voter: string): Promise<any> => {
+    try {
+      const response = await apiClient.getVoteReceipt(proposalId, voter);
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting vote receipt:', error);
+      return null;
+    }
+  }, []);
+
+  const getQuorum = useCallback(async (): Promise<number> => {
+    try {
+      const response = await apiClient.getQuorum();
+      if (response.success && response.data) {
+        return response.data.quorum || 0;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Error getting quorum:', error);
+      return 0;
+    }
+  }, []);
+
+  const getVotingDelay = useCallback(async (): Promise<number> => {
+    try {
+      const response = await apiClient.getVotingDelay();
+      if (response.success && response.data) {
+        return response.data.voting_delay || 0;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Error getting voting delay:', error);
+      return 0;
+    }
+  }, []);
+
+  const getVotingPeriod = useCallback(async (): Promise<number> => {
+    try {
+      const response = await apiClient.getVotingPeriod();
+      if (response.success && response.data) {
+        return response.data.voting_period || 0;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Error getting voting period:', error);
+      return 0;
+    }
+  }, []);
+
+  const getProposalThreshold = useCallback(async (): Promise<number> => {
+    try {
+      const response = await apiClient.getProposalThreshold();
+      if (response.success && response.data) {
+        return response.data.proposal_threshold || 0;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Error getting proposal threshold:', error);
+      return 0;
+    }
+  }, []);
+
+  const getAllProposals = useCallback(async (): Promise<any[]> => {
+    try {
+      const response = await apiClient.getAllProposals();
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting all proposals:', error);
+      return [];
+    }
+  }, []);
+
+  const getActiveProposals = useCallback(async (): Promise<any[]> => {
+    try {
+      const response = await apiClient.getActiveProposals();
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting active proposals:', error);
+      return [];
+    }
+  }, []);
+
+  const canExecute = useCallback(async (proposalId: string): Promise<boolean> => {
+    try {
+      const response = await apiClient.canExecute(proposalId);
+      if (response.success && response.data) {
+        return response.data.can_execute || false;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error checking if proposal can execute:', error);
+      return false;
+    }
+  }, []);
+
+  const hasVoted = useCallback(async (proposalId: string, voter: string): Promise<boolean> => {
+    try {
+      const response = await apiClient.hasVoted(proposalId, voter);
+      if (response.success && response.data) {
+        return response.data.has_voted || false;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error checking if voter has voted:', error);
+      return false;
+    }
+  }, []);
+
   const fetchDashboardData = useCallback(async () => {
     if (!isConnected || !user?.accountId) {
       return;
@@ -126,23 +546,13 @@ export function useDashboardData(): UseDashboardDataReturn {
     setError(null);
 
     try {
-      // Fetch skill tokens
-      const skillsResponse = await apiClient.getSkillTokens(user.accountId);
-      if (skillsResponse.success && skillsResponse.data) {
-        setSkillTokens(skillsResponse.data);
-      } else {
-        console.warn('Failed to fetch skill tokens:', skillsResponse.error);
-        setSkillTokens([]);
-      }
-
-      // Fetch job pools (both created by user and applied to)
-      const poolsResponse = await apiClient.getJobPools(1, 20);
-      if (poolsResponse.success && poolsResponse.data) {
-        setJobPools(poolsResponse.data.items);
-      } else {
-        console.warn('Failed to fetch job pools:', poolsResponse.error);
-        setJobPools([]);
-      }
+      // Fetch all data in parallel
+      await Promise.all([
+        fetchSkillTokens(),
+        fetchJobPools(),
+        // fetchReputation(), // Removed as per new_code
+        // fetchGovernanceData() // Removed as per new_code
+      ]);
 
       setLastUpdated(new Date());
     } catch (err) {
@@ -152,7 +562,7 @@ export function useDashboardData(): UseDashboardDataReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [isConnected, user?.accountId]);
+  }, [isConnected, user?.accountId, fetchSkillTokens, fetchJobPools]); // Removed fetchReputation, fetchGovernanceData from dependencies
 
   // Auto-fetch on wallet connection
   useEffect(() => {
@@ -166,7 +576,7 @@ export function useDashboardData(): UseDashboardDataReturn {
   useEffect(() => {
     if (!isConnected) return;
 
-    let intervalId: NodeJS.Timeout;
+    let intervalId: ReturnType<typeof setInterval>;
 
     const handleVisibilityChange = () => {
       if (!document.hidden && isConnected) {
@@ -190,6 +600,7 @@ export function useDashboardData(): UseDashboardDataReturn {
   }, [isConnected, fetchDashboardData]);
 
   return {
+    // Basic dashboard data
     stats,
     skillTokens,
     jobPools,
@@ -197,6 +608,77 @@ export function useDashboardData(): UseDashboardDataReturn {
     error,
     refetch: fetchDashboardData,
     lastUpdated,
+
+    // Enhanced Skills functionality
+    createSkillToken,
+    updateSkillLevel,
+    endorseSkillToken,
+    renewSkillToken,
+    revokeSkillToken,
+    getSkillEndorsements,
+    markExpiredTokens,
+    getTokensByCategory,
+    getTotalSkillsByCategory,
+    isLoadingSkills,
+    skillsError,
+
+    // Enhanced Job Pools functionality
+    createJobPool,
+    applyToPool,
+    leavePool,
+    selectCandidate,
+    completePool,
+    closePool,
+    calculateMatchScore,
+    getPoolMetrics,
+    getTalentPoolGlobalStats,
+    getActivePoolsCount,
+    getTotalPoolsCount,
+    isLoadingJobs,
+    jobsError,
+
+    // Enhanced Reputation functionality
+    reputation,
+    history,
+    isLoadingReputation,
+    reputationError,
+    registerOracle,
+    submitEvaluation,
+    challengeEvaluation,
+    resolveChallenge,
+    slashOracle,
+    withdrawOracleStake,
+    getOracleInfo,
+    getActiveOracles,
+    getCategoryScore,
+    getWorkEvaluation,
+    getUserEvaluations,
+    getGlobalStats,
+
+    // Enhanced Governance functionality
+    proposals,
+    activeProposals,
+    isLoadingGovernance,
+    governanceError,
+    createProposal,
+    castVote,
+    delegateVotingPower,
+    undelegateVotingPower,
+    getProposal,
+    getVotingPower,
+    queueProposal,
+    executeProposal,
+    cancelProposal,
+    getProposalStatus,
+    getVoteReceipt,
+    getQuorum,
+    getVotingDelay,
+    getVotingPeriod,
+    getProposalThreshold,
+    getAllProposals,
+    getActiveProposals,
+    canExecute,
+    hasVoted
   };
 }
 
@@ -297,9 +779,12 @@ export function useSkillTokens(): UseSkillTokensReturn {
   // Add missing skill token functionality
   const endorseSkillToken = useCallback(async (tokenId: string, endorsementData: string): Promise<TransactionResult> => {
     try {
-      // This would need to be added to the backend API - for now return placeholder
-      console.log('Endorsing skill token:', tokenId, endorsementData);
-      return { success: true, transactionId: 'placeholder' };
+      const response = await apiClient.endorseSkillToken(tokenId, endorsementData);
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to endorse skill token');
+      }
     } catch (error) {
       console.error('Error endorsing skill token:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
@@ -308,9 +793,12 @@ export function useSkillTokens(): UseSkillTokensReturn {
 
   const renewSkillToken = useCallback(async (tokenId: string, newExpiryDate: number): Promise<TransactionResult> => {
     try {
-      // This would need to be added to the backend API - for now return placeholder
-      console.log('Renewing skill token:', tokenId, newExpiryDate);
-      return { success: true, transactionId: 'placeholder' };
+      const response = await apiClient.renewSkillToken(tokenId, newExpiryDate);
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to renew skill token');
+      }
     } catch (error) {
       console.error('Error renewing skill token:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
@@ -319,9 +807,12 @@ export function useSkillTokens(): UseSkillTokensReturn {
 
   const revokeSkillToken = useCallback(async (tokenId: string, reason: string): Promise<TransactionResult> => {
     try {
-      // This would need to be added to the backend API - for now return placeholder
-      console.log('Revoking skill token:', tokenId, reason);
-      return { success: true, transactionId: 'placeholder' };
+      const response = await apiClient.revokeSkillToken(tokenId, reason);
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to revoke skill token');
+      }
     } catch (error) {
       console.error('Error revoking skill token:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
@@ -330,8 +821,10 @@ export function useSkillTokens(): UseSkillTokensReturn {
 
   const getSkillEndorsements = useCallback(async (tokenId: string): Promise<any[]> => {
     try {
-      // This would need to be added to the backend API - for now return placeholder
-      console.log('Getting skill endorsements for:', tokenId);
+      const response = await apiClient.getSkillEndorsements(tokenId);
+      if (response.success && response.data) {
+        return response.data;
+      }
       return [];
     } catch (error) {
       console.error('Error getting skill endorsements:', error);
@@ -341,9 +834,12 @@ export function useSkillTokens(): UseSkillTokensReturn {
 
   const markExpiredTokens = useCallback(async (tokenIds: string[]): Promise<TransactionResult> => {
     try {
-      // This would need to be added to the backend API - for now return placeholder
-      console.log('Marking expired tokens:', tokenIds);
-      return { success: true, transactionId: 'placeholder' };
+      const response = await apiClient.markExpiredTokens(tokenIds);
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to mark expired tokens');
+      }
     } catch (error) {
       console.error('Error marking expired tokens:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
@@ -352,8 +848,10 @@ export function useSkillTokens(): UseSkillTokensReturn {
 
   const getTokensByCategory = useCallback(async (category: string, limit: number = 50): Promise<any[]> => {
     try {
-      // This would need to be added to the backend API - for now return placeholder
-      console.log('Getting tokens by category:', category, limit);
+      const response = await apiClient.getTokensByCategory(category, limit);
+      if (response.success && response.data) {
+        return response.data;
+      }
       return [];
     } catch (error) {
       console.error('Error getting tokens by category:', error);
@@ -363,8 +861,10 @@ export function useSkillTokens(): UseSkillTokensReturn {
 
   const getTotalSkillsByCategory = useCallback(async (category: string): Promise<number> => {
     try {
-      // This would need to be added to the backend API - for now return placeholder
-      console.log('Getting total skills by category:', category);
+      const response = await apiClient.getTotalSkillsByCategory(category);
+      if (response.success && response.data) {
+        return response.data.total_count || 0;
+      }
       return 0;
     } catch (error) {
       console.error('Error getting total skills by category:', error);
@@ -476,27 +976,27 @@ export function useJobPools(): UseJobPoolsReturn {
   ): Promise<TransactionResult> => {
     try {
       const response = await apiClient.applyToPool({
-        poolId: poolId,
-        applicantAddress: user?.accountId || '',
-        expectedSalary: 0,
-        availabilityDate: Math.floor(Date.now() / 1000),
-        coverLetter: '',
-        stakeAmount: 50000000 // 0.5 HBAR in tinybar
+        pool_id: poolId.toString(),
+        candidate_address: user?.accountId || '',
+        cover_letter: 'Application submitted via dashboard',
+        resume_uri: 'https://example.com/resume',
+        stake_amount: 50000000
       });
-
       if (response.success && response.data) {
-        // Update local state to show application
-        setJobPools((prev: JobPoolInfo[]) => prev.map((pool: JobPoolInfo) =>
-          pool.id === poolId
-            ? { ...pool, hasApplied: true }
-            : pool
-        ));
+        // Optimistically update the UI
+        setJobPools((prev: JobPoolInfo[]) =>
+          prev.map(pool =>
+            pool.id === poolId
+              ? { ...pool, applicants: [...pool.applicants, user?.accountId || ''] }
+              : pool
+          )
+        );
         return { success: true, transactionId: response.data!.transaction_id };
       } else {
-        throw new Error(response.error || 'Failed to apply to job pool');
+        throw new Error(response.error || 'Failed to apply to pool');
       }
     } catch (error) {
-      console.error('Error applying to job pool:', error);
+      console.error('Error applying to pool:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }, [user?.accountId]);
@@ -560,41 +1060,55 @@ export function useJobPools(): UseJobPoolsReturn {
 
   const getPoolMetrics = useCallback(async (poolId: string): Promise<any> => {
     try {
-      console.log('Getting pool metrics for:', poolId);
-      return { applications: 0, matchScore: 0, status: 'active' };
+      const response = await apiClient.getPoolMetrics(poolId);
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return null;
     } catch (error) {
       console.error('Error getting pool metrics:', error);
-      return {};
+      return null;
     }
   }, []);
 
-  const getGlobalStats = useCallback(async (): Promise<any> => {
+  const getTalentPoolGlobalStats = useCallback(async (): Promise<any> => {
     try {
-      console.log('Getting global stats');
-      return { totalPools: jobPools.length, activePools: jobPools.filter(p => p.status === 'active').length };
+      const response = await apiClient.getTalentPoolGlobalStats();
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return null;
     } catch (error) {
-      console.error('Error getting global stats:', error);
-      return {};
+      console.error('Error getting talent pool global stats:', error);
+      return null;
     }
-  }, [jobPools]);
+  }, []);
 
   const getActivePoolsCount = useCallback(async (): Promise<number> => {
     try {
-      return jobPools.filter(pool => pool.status === 'active').length;
+      const response = await apiClient.getActivePoolsCount();
+      if (response.success && response.data) {
+        return response.data.active_count || 0;
+      }
+      return 0;
     } catch (error) {
       console.error('Error getting active pools count:', error);
       return 0;
     }
-  }, [jobPools]);
+  }, []);
 
   const getTotalPoolsCount = useCallback(async (): Promise<number> => {
     try {
-      return jobPools.length;
+      const response = await apiClient.getTotalPoolsCount();
+      if (response.success && response.data) {
+        return response.data.total_count || 0;
+      }
+      return 0;
     } catch (error) {
       console.error('Error getting total pools count:', error);
       return 0;
     }
-  }, [jobPools]);
+  }, []);
 
   // Initial fetch and refetch on user change
   useEffect(() => {
@@ -614,7 +1128,7 @@ export function useJobPools(): UseJobPoolsReturn {
     closePool,
     calculateMatchScore,
     getPoolMetrics,
-    getGlobalStats,
+    getGlobalStats: getTalentPoolGlobalStats, // Renamed to avoid conflict with useReputation
     getActivePoolsCount,
     getTotalPoolsCount,
   };
@@ -675,6 +1189,350 @@ export function useReputation(userId?: string) {
     }
   }, [isConnected, user?.accountId]);
 
+  // Add missing reputation functionality
+  const registerOracle = useCallback(async (stakeAmount: number, categories: string[]): Promise<TransactionResult> => {
+    try {
+      const response = await apiClient.registerOracle({ name: 'Oracle', specializations: categories, stakeAmount });
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to register oracle');
+      }
+    } catch (error) {
+      console.error('Error registering oracle:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, []);
+
+  const submitEvaluation = useCallback(async (userAddress: string, category: string, score: number, evidence: string): Promise<TransactionResult> => {
+    try {
+      const response = await apiClient.submitEvaluation({
+        user: userAddress,
+        skillTokenIds: [],
+        workDescription: `Evaluation for ${category}`,
+        workContent: evidence,
+        overallScore: score,
+        skillScores: { [category]: score },
+        feedback: evidence
+      });
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to submit evaluation');
+      }
+    } catch (error) {
+      console.error('Error submitting evaluation:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, []);
+
+  const challengeEvaluation = useCallback(async (evaluationId: string, reason: string, stakeAmount: number): Promise<TransactionResult> => {
+    try {
+      const response = await apiClient.challengeEvaluation(evaluationId, reason, stakeAmount);
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to challenge evaluation');
+      }
+    } catch (error) {
+      console.error('Error challenging evaluation:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, []);
+
+  const resolveChallenge = useCallback(async (challengeId: string, resolution: string): Promise<TransactionResult> => {
+    try {
+      const response = await apiClient.resolveChallenge(challengeId, resolution);
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to resolve challenge');
+      }
+    } catch (error) {
+      console.error('Error resolving challenge:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, []);
+
+  const slashOracle = useCallback(async (oracleAddress: string, reason: string): Promise<TransactionResult> => {
+    try {
+      const response = await apiClient.slashOracle(oracleAddress, reason);
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to slash oracle');
+      }
+    } catch (error) {
+      console.error('Error slashing oracle:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, []);
+
+  const withdrawOracleStake = useCallback(async (oracleAddress: string): Promise<TransactionResult> => {
+    try {
+      const response = await apiClient.withdrawOracleStake(oracleAddress);
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to withdraw oracle stake');
+      }
+    } catch (error) {
+      console.error('Error withdrawing oracle stake:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, []);
+
+  const getOracleInfo = useCallback(async (oracleAddress: string): Promise<any> => {
+    try {
+      const response = await apiClient.getOracleInfo(oracleAddress);
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting oracle info:', error);
+      return null;
+    }
+  }, []);
+
+  const getActiveOracles = useCallback(async (): Promise<any[]> => {
+    try {
+      const response = await apiClient.getActiveOracles();
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting active oracles:', error);
+      return [];
+    }
+  }, []);
+
+  const getCategoryScore = useCallback(async (userAddress: string, category: string): Promise<number> => {
+    try {
+      const response = await apiClient.getCategoryScore(userAddress, category);
+      if (response.success && response.data) {
+        return response.data.score || 0;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Error getting category score:', error);
+      return 0;
+    }
+  }, []);
+
+  const getWorkEvaluation = useCallback(async (evaluationId: string): Promise<any> => {
+    try {
+      const response = await apiClient.getWorkEvaluation(evaluationId);
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting work evaluation:', error);
+      return null;
+    }
+  }, []);
+
+  const getUserEvaluations = useCallback(async (userAddress: string): Promise<any[]> => {
+    try {
+      const response = await apiClient.getUserEvaluations(userAddress);
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting user evaluations:', error);
+      return [];
+    }
+  }, []);
+
+  const getGlobalStats = useCallback(async (): Promise<any> => {
+    try {
+      const response = await apiClient.getGlobalStats();
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting global stats:', error);
+      return null;
+    }
+  }, []);
+
+  // Add missing governance functionality
+  const queueProposal = useCallback(async (proposalId: string): Promise<TransactionResult> => {
+    try {
+      const response = await apiClient.queueProposal(proposalId);
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to queue proposal');
+      }
+    } catch (error) {
+      console.error('Error queuing proposal:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, []);
+
+  const executeProposal = useCallback(async (proposalId: string): Promise<TransactionResult> => {
+    try {
+      const response = await apiClient.executeProposal(proposalId);
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to execute proposal');
+      }
+    } catch (error) {
+      console.error('Error executing proposal:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, []);
+
+  const cancelProposal = useCallback(async (proposalId: string): Promise<TransactionResult> => {
+    try {
+      const response = await apiClient.cancelProposal(proposalId);
+      if (response.success && response.data) {
+        return { success: true, transactionId: response.data!.transaction_id };
+      } else {
+        throw new Error(response.error || 'Failed to cancel proposal');
+      }
+    } catch (error) {
+      console.error('Error canceling proposal:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }, []);
+
+  const getProposalStatus = useCallback(async (proposalId: string): Promise<string> => {
+    try {
+      const response = await apiClient.getProposalStatus(proposalId);
+      if (response.success && response.data) {
+        return response.data.status || 'unknown';
+      }
+      return 'unknown';
+    } catch (error) {
+      console.error('Error getting proposal status:', error);
+      return 'unknown';
+    }
+  }, []);
+
+  const getVoteReceipt = useCallback(async (proposalId: string, voter: string): Promise<any> => {
+    try {
+      const response = await apiClient.getVoteReceipt(proposalId, voter);
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting vote receipt:', error);
+      return null;
+    }
+  }, []);
+
+  const getQuorum = useCallback(async (): Promise<number> => {
+    try {
+      const response = await apiClient.getQuorum();
+      if (response.success && response.data) {
+        return response.data.quorum || 0;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Error getting quorum:', error);
+      return 0;
+    }
+  }, []);
+
+  const getVotingDelay = useCallback(async (): Promise<number> => {
+    try {
+      const response = await apiClient.getVotingDelay();
+      if (response.success && response.data) {
+        return response.data.voting_delay || 0;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Error getting voting delay:', error);
+      return 0;
+    }
+  }, []);
+
+  const getVotingPeriod = useCallback(async (): Promise<number> => {
+    try {
+      const response = await apiClient.getVotingPeriod();
+      if (response.success && response.data) {
+        return response.data.voting_period || 0;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Error getting voting period:', error);
+      return 0;
+    }
+  }, []);
+
+  const getProposalThreshold = useCallback(async (): Promise<number> => {
+    try {
+      const response = await apiClient.getProposalThreshold();
+      if (response.success && response.data) {
+        return response.data.proposal_threshold || 0;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Error getting proposal threshold:', error);
+      return 0;
+    }
+  }, []);
+
+  const getAllProposals = useCallback(async (): Promise<any[]> => {
+    try {
+      const response = await apiClient.getAllProposals();
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting all proposals:', error);
+      return [];
+    }
+  }, []);
+
+  const getActiveProposals = useCallback(async (): Promise<any[]> => {
+    try {
+      const response = await apiClient.getActiveProposals();
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting active proposals:', error);
+      return [];
+    }
+  }, []);
+
+  const canExecute = useCallback(async (proposalId: string): Promise<boolean> => {
+    try {
+      const response = await apiClient.canExecute(proposalId);
+      if (response.success && response.data) {
+        return response.data.can_execute || false;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error checking if proposal can execute:', error);
+      return false;
+    }
+  }, []);
+
+  const hasVoted = useCallback(async (proposalId: string, voter: string): Promise<boolean> => {
+    try {
+      const response = await apiClient.hasVoted(proposalId, voter);
+      if (response.success && response.data) {
+        return response.data.has_voted || false;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error checking if voter has voted:', error);
+      return false;
+    }
+  }, []);
+
   useEffect(() => {
     fetchReputation();
   }, [fetchReputation]);
@@ -685,5 +1543,17 @@ export function useReputation(userId?: string) {
     isLoading,
     error,
     refetch: fetchReputation,
+    registerOracle,
+    submitEvaluation,
+    challengeEvaluation,
+    resolveChallenge,
+    slashOracle,
+    withdrawOracleStake,
+    getOracleInfo,
+    getActiveOracles,
+    getCategoryScore,
+    getWorkEvaluation,
+    getUserEvaluations,
+    getGlobalStats
   };
 }

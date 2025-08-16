@@ -35,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useSkillTokens } from "@/hooks/useSkillTokens";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 // Skill categories for filtering
 const skillCategories = [
@@ -53,40 +53,31 @@ const skillCategories = [
 
 export default function SkillsPage() {
   const { user, isConnected } = useAuth();
-  const { skillTokens, isLoading, error, refetch, createSkillToken, updateSkillLevel } = useSkillTokens();
+  const {
+    skillTokens,
+    isLoading: isLoadingSkills,
+    skillsError: error,
+    refetch: fetchSkillTokens,
+    createSkillToken,
+    updateSkillLevel
+  } = useDashboardData();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [selectedSkill, setSelectedSkill] = useState<SkillTokenInfo | null>(null);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
-  const [showViewDialog, setShowViewDialog] = useState(false);
 
   const handleSkillCreated = async (skillData: any) => {
     // Refresh the skills list after creation
-    await refetch();
-    setShowCreateDialog(false);
+    await fetchSkillTokens();
   };
 
   const handleSkillUpdated = async (skillData: any) => {
     // Refresh the skills list after update
-    await refetch();
-    setShowUpdateDialog(false);
-  };
-
-  const handleViewSkill = (skill: SkillTokenInfo) => {
-    setSelectedSkill(skill);
-    setShowViewDialog(true);
-  };
-
-  const handleUpdateSkill = (skill: SkillTokenInfo) => {
-    setSelectedSkill(skill);
-    setShowUpdateDialog(true);
+    await fetchSkillTokens();
   };
 
   // Filter skills based on search and category
   const filteredSkills = skillTokens.filter(skill => {
     const matchesSearch = skill.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (skill.description || "").toLowerCase().includes(searchTerm.toLowerCase());
+      skill.uri.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === "all" || skill.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -98,28 +89,25 @@ export default function SkillsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="flex items-center justify-between"
-      >
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
             My Skills
           </h1>
           <p className="text-slate-600 dark:text-slate-400 mt-2">
-            Manage your skill tokens and showcase your expertise
+            Manage and showcase your skill tokens
           </p>
         </div>
-        <Button
-          onClick={() => setShowCreateDialog(true)}
-          className="bg-hedera-600 hover:bg-hedera-700"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Create Skill Token
-        </Button>
-      </motion.div>
+        <ContractCreateSkillDialog
+          onSkillCreated={handleSkillCreated}
+          triggerButton={
+            <Button className="bg-hedera-600 hover:bg-hedera-700">
+              <Plus className="w-4 h-4 mr-2" />
+              Create Skill Token
+            </Button>
+          }
+        />
+      </div>
 
       {/* Search and Filter */}
       <motion.div
@@ -159,7 +147,7 @@ export default function SkillsPage() {
         transition={{ duration: 0.5, delay: 0.2 }}
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
       >
-        {isLoading ? (
+        {isLoadingSkills ? (
           // Loading state
           Array.from({ length: 6 }).map((_, i) => (
             <Card key={i} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-slate-200/50 dark:border-slate-700/50 hover:shadow-lg hover:border-hedera-300/50 dark:hover:border-hedera-700/50 transition-all duration-300">
@@ -179,7 +167,7 @@ export default function SkillsPage() {
               <AlertCircle className="w-12 h-12 mx-auto" />
             </div>
             <p className="text-slate-600 dark:text-slate-400 mb-4">{error}</p>
-            <Button onClick={refetch} variant="outline">
+            <Button onClick={fetchSkillTokens} variant="outline">
               Try Again
             </Button>
           </div>
@@ -195,10 +183,15 @@ export default function SkillsPage() {
                 : "You haven't created any skill tokens yet"}
             </p>
             {!searchTerm && selectedCategory === "all" && (
-              <Button onClick={() => setShowCreateDialog(true)} className="bg-hedera-600 hover:bg-hedera-700">
-                <Plus className="w-4 h-4 mr-2" />
-                Create Your First Skill Token
-              </Button>
+              <ContractCreateSkillDialog
+                onSkillCreated={handleSkillCreated}
+                triggerButton={
+                  <Button className="bg-hedera-600 hover:bg-hedera-700">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Your First Skill Token
+                  </Button>
+                }
+              />
             )}
           </div>
         ) : (
@@ -233,10 +226,13 @@ export default function SkillsPage() {
                   </div>
 
                   {/* Skill Description */}
-                  {skill.description && (
-                    <p className="text-slate-600 dark:text-slate-400 text-sm mb-4 flex-1">
-                      {skill.description}
-                    </p>
+                  {skill.uri && (
+                    <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                      <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                        <Hash className="w-4 h-4" />
+                        <span className="truncate">{skill.uri}</span>
+                      </div>
+                    </div>
                   )}
 
                   {/* Skill Level Progress */}
@@ -262,24 +258,25 @@ export default function SkillsPage() {
 
                   {/* Action Buttons */}
                   <div className="flex gap-2 mt-auto">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewSkill(skill)}
-                      className="flex-1"
-                    >
-                      <BookOpen className="w-4 h-4 mr-2" />
-                      View
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleUpdateSkill(skill)}
-                      className="flex-1"
-                    >
-                      <Target className="w-4 h-4 mr-2" />
-                      Update
-                    </Button>
+                    <ViewSkillTokenDialog
+                      skill={skill}
+                      triggerButton={
+                        <Button variant="outline" size="sm" className="flex-1">
+                          <BookOpen className="w-4 h-4 mr-2" />
+                          View
+                        </Button>
+                      }
+                    />
+                    <UpdateSkillTokenDialog
+                      skill={skill}
+                      onSkillUpdated={handleSkillUpdated}
+                      triggerButton={
+                        <Button variant="outline" size="sm" className="flex-1">
+                          <Target className="w-4 h-4 mr-2" />
+                          Update
+                        </Button>
+                      }
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -287,30 +284,6 @@ export default function SkillsPage() {
           ))
         )}
       </motion.div>
-
-      {/* Dialogs */}
-      <ContractCreateSkillDialog
-        open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
-        onSkillCreated={handleSkillCreated}
-      />
-
-      {selectedSkill && (
-        <>
-          <UpdateSkillTokenDialog
-            open={showUpdateDialog}
-            onOpenChange={setShowUpdateDialog}
-            skillToken={selectedSkill}
-            onSkillUpdated={handleSkillUpdated}
-          />
-
-          <ViewSkillTokenDialog
-            open={showViewDialog}
-            onOpenChange={setShowViewDialog}
-            skillToken={selectedSkill}
-          />
-        </>
-      )}
     </div>
   );
 }
