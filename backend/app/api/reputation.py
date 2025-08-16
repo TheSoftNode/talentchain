@@ -29,6 +29,9 @@ from app.models.reputation_schemas import (
 from app.models.common_schemas import ErrorResponse, BatchResponse
 from app.services.reputation import get_reputation_service, ReputationService, ReputationEventType, ReputationCategory
 from app.utils.hedera import validate_hedera_address
+from app.models.user_schemas import User
+from app.utils.auth import get_current_user
+from app.models.reputation_schemas import UpdateOracleStatusRequest
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -982,3 +985,89 @@ async def finalize_consensus(
     except Exception as e:
         logger.error(f"Error finalizing consensus: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to finalize consensus")
+
+@router.get("/category/{user_address}/{category}")
+async def get_category_score(
+    user_address: str,
+    category: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Get category-specific reputation score."""
+    try:
+        reputation_service = get_reputation_service()
+        result = await reputation_service.get_category_score(
+            user_address=user_address,
+            category=category
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error getting category score: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/evaluation/{evaluation_id}")
+async def get_work_evaluation(
+    evaluation_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Get work evaluation details."""
+    try:
+        reputation_service = get_reputation_service()
+        result = await reputation_service.get_work_evaluation(
+            evaluation_id=evaluation_id
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error getting work evaluation: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/user/{user_address}/evaluations")
+async def get_user_evaluations(
+    user_address: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Get all evaluations for a user."""
+    try:
+        reputation_service = get_reputation_service()
+        result = await reputation_service.get_user_evaluations(
+            user_address=user_address
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error getting user evaluations: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/stats/global")
+async def get_global_stats(
+    current_user: User = Depends(get_current_user)
+):
+    """Get global reputation statistics."""
+    try:
+        reputation_service = get_reputation_service()
+        result = await reputation_service.get_global_stats()
+        return result
+    except Exception as e:
+        logger.error(f"Error getting global stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/oracle/{oracle_address}/status")
+async def update_oracle_status(
+    oracle_address: str,
+    request: UpdateOracleStatusRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Update oracle status."""
+    try:
+        reputation_service = get_reputation_service()
+        result = await reputation_service.update_oracle_status(
+            oracle_address=oracle_address,
+            is_active=request.is_active,
+            reason=request.reason
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error updating oracle status: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

@@ -42,7 +42,10 @@ except ImportError:
 from app.utils.hedera import (
     get_contract_manager, validate_hedera_address, submit_hcs_message,
     queue_proposal, execute_proposal, cancel_proposal,
-    cast_vote_with_signature, batch_execute_proposals
+    cast_vote_with_signature, batch_execute_proposals, get_proposal_status,
+    get_vote_receipt, get_quorum, get_voting_delay, get_voting_period,
+    get_proposal_threshold, get_all_proposals, get_active_proposals,
+    can_execute, has_voted
 )
 
 try:
@@ -1482,6 +1485,240 @@ class GovernanceService:
             
         except Exception as e:
             logger.error(f"Error batch executing proposals: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_proposal_status(self, proposal_id: str) -> Dict[str, Any]:
+        """
+        Get proposal status.
+        
+        Args:
+            proposal_id: ID of the proposal
+            
+        Returns:
+            Dictionary containing proposal status.
+        """
+        try:
+            result = await get_proposal_status(proposal_id=proposal_id)
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", f"Failed to get status for proposal {proposal_id}")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting proposal status: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_vote_receipt(self, proposal_id: str, voter: str) -> Dict[str, Any]:
+        """
+        Get vote receipt for a voter on a proposal.
+        
+        Args:
+            proposal_id: ID of the proposal
+            voter: Address of the voter
+            
+        Returns:
+            Dictionary containing vote receipt.
+        """
+        try:
+            result = await get_vote_receipt(proposal_id=proposal_id, voter=voter)
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", f"Failed to get vote receipt for proposal {proposal_id}")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting vote receipt: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_quorum(self) -> Dict[str, Any]:
+        """
+        Get quorum requirement.
+        
+        Returns:
+            Dictionary containing quorum information.
+        """
+        try:
+            result = await get_quorum()
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", "Failed to get quorum")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting quorum: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_voting_delay(self) -> Dict[str, Any]:
+        """
+        Get voting delay.
+        
+        Returns:
+            Dictionary containing voting delay information.
+        """
+        try:
+            result = await get_voting_delay()
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", "Failed to get voting delay")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting voting delay: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_voting_period(self) -> Dict[str, Any]:
+        """
+        Get voting period.
+        
+        Returns:
+            Dictionary containing voting period information.
+        """
+        try:
+            result = await get_voting_period()
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", "Failed to get voting period")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting voting period: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_proposal_threshold(self) -> Dict[str, Any]:
+        """
+        Get proposal threshold.
+        
+        Returns:
+            Dictionary containing proposal threshold information.
+        """
+        try:
+            result = await get_proposal_threshold()
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", "Failed to get proposal threshold")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting proposal threshold: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_all_proposals(self) -> Dict[str, Any]:
+        """
+        Get all proposals.
+        
+        Returns:
+            Dictionary containing all proposals.
+        """
+        try:
+            result = await get_all_proposals()
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", "Failed to get all proposals")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting all proposals: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_active_proposals(self) -> Dict[str, Any]:
+        """
+        Get active proposals.
+        
+        Returns:
+            Dictionary containing active proposals.
+        """
+        try:
+            result = await get_active_proposals()
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", "Failed to get active proposals")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting active proposals: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def can_execute(self, proposal_id: str) -> Dict[str, Any]:
+        """
+        Check if a proposal can be executed.
+        
+        Args:
+            proposal_id: ID of the proposal
+            
+        Returns:
+            Dictionary containing execution status.
+        """
+        try:
+            result = await can_execute(proposal_id=proposal_id)
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", f"Failed to check execution status for proposal {proposal_id}")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error checking execution status: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def has_voted(self, proposal_id: str, voter: str) -> Dict[str, Any]:
+        """
+        Check if a voter has voted on a proposal.
+        
+        Args:
+            proposal_id: ID of the proposal
+            voter: Address of the voter
+            
+        Returns:
+            Dictionary containing voting status.
+        """
+        try:
+            result = await has_voted(proposal_id=proposal_id, voter=voter)
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", f"Failed to check voting status for proposal {proposal_id}")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error checking voting status: {str(e)}")
             return {
                 "success": False,
                 "error": str(e)

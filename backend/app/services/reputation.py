@@ -43,7 +43,9 @@ except ImportError:
 from app.utils.hedera import (
     get_contract_manager, get_client, submit_hcs_message,
     validate_hedera_address, resolve_challenge, slash_oracle,
-    withdraw_oracle_stake, get_oracle_performance
+    withdraw_oracle_stake, get_oracle_performance, get_category_score,
+    get_work_evaluation, get_user_evaluations, get_global_stats,
+    update_oracle_status
 )
 
 try:
@@ -1612,10 +1614,7 @@ class ReputationService:
                 "error": str(e)
             }
 
-    async def get_oracle_performance(
-        self,
-        oracle_address: str
-    ) -> Dict[str, Any]:
+    async def get_oracle_performance(self, oracle_address: str) -> Dict[str, Any]:
         """
         Get oracle performance metrics.
         
@@ -1623,22 +1622,152 @@ class ReputationService:
             oracle_address: Address of the oracle
             
         Returns:
-            Dict containing performance metrics
+            Dictionary containing performance metrics.
         """
         try:
-            # Call blockchain function
             result = await get_oracle_performance(oracle_address=oracle_address)
-            
             if not result.get("success"):
                 return {
                     "success": False,
                     "error": result.get("error", "Failed to get oracle performance")
                 }
-            
             return result
-            
         except Exception as e:
-            logger.error(f"Error getting oracle performance for {oracle_address}: {str(e)}")
+            logger.error(f"Error getting oracle performance: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_category_score(self, user_address: str, category: str) -> Dict[str, Any]:
+        """
+        Get category-specific reputation score.
+        
+        Args:
+            user_address: User's address
+            category: Skill category
+            
+        Returns:
+            Dictionary containing category score.
+        """
+        try:
+            result = await get_category_score(user_address=user_address, category=category)
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", f"Failed to get category score for {category}")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting category score: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_work_evaluation(self, evaluation_id: str) -> Dict[str, Any]:
+        """
+        Get work evaluation details.
+        
+        Args:
+            evaluation_id: ID of the evaluation
+            
+        Returns:
+            Dictionary containing evaluation details.
+        """
+        try:
+            result = await get_work_evaluation(evaluation_id=evaluation_id)
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", f"Failed to get work evaluation {evaluation_id}")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting work evaluation: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_user_evaluations(self, user_address: str) -> Dict[str, Any]:
+        """
+        Get all evaluations for a user.
+        
+        Args:
+            user_address: User's address
+            
+        Returns:
+            Dictionary containing user evaluations.
+        """
+        try:
+            result = await get_user_evaluations(user_address=user_address)
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", f"Failed to get evaluations for user {user_address}")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting user evaluations: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_global_stats(self) -> Dict[str, Any]:
+        """
+        Get global reputation statistics.
+        
+        Returns:
+            Dictionary containing global stats.
+        """
+        try:
+            result = await get_global_stats()
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", "Failed to get global stats")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting global stats: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def update_oracle_status(self, oracle_address: str, is_active: bool, reason: str) -> Dict[str, Any]:
+        """
+        Update oracle status.
+        
+        Args:
+            oracle_address: Address of the oracle
+            is_active: Whether the oracle should be active
+            reason: Reason for status change
+            
+        Returns:
+            Dictionary containing the status update result.
+        """
+        try:
+            result = await update_oracle_status(oracle_address=oracle_address, is_active=is_active, reason=reason)
+            if not result.success:
+                return {
+                    "success": False,
+                    "error": result.error
+                }
+            
+            # Update database with status change
+            # This would typically involve updating the oracles table
+            # For now, we'll just return the blockchain result
+            
+            return {
+                "success": True,
+                "transaction_id": result.transaction_id,
+                "message": f"Oracle status updated successfully"
+            }
+        except Exception as e:
+            logger.error(f"Error updating oracle status: {str(e)}")
             return {
                 "success": False,
                 "error": str(e)

@@ -22,8 +22,8 @@ from app.utils.hedera import (
     get_contract_manager, create_skill_token, update_skill_level,
     add_skill_experience, get_skill_token_info, get_user_skills,
     endorse_skill_token, renew_skill_token, revoke_skill_token,
-    get_skill_endorsements, mark_expired_tokens,
-    SkillTokenData, SkillCategory
+    get_skill_endorsements, mark_expired_tokens, get_tokens_by_category,
+    get_total_skills_by_category
 )
 from app.config import get_settings
 
@@ -1682,6 +1682,218 @@ class SkillService:
             
         except Exception as e:
             logger.error(f"Error marking expired tokens: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_total_skills_by_category(self) -> Dict[str, Any]:
+        """
+        Get the total number of skills for each category.
+        
+        Returns:
+            Dictionary containing total skills per category.
+        """
+        try:
+            result = await get_total_skills_by_category()
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", "Failed to get total skills by category")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting total skills by category: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_tokens_by_category(self, category: str, limit: int = 50) -> Dict[str, Any]:
+        """
+        Get skill tokens for a specific category.
+        
+        Args:
+            category: The skill category (e.g., "frontend", "backend")
+            limit: Maximum number of tokens to return
+            
+        Returns:
+            Dictionary containing tokens for the category.
+        """
+        try:
+            result = await get_tokens_by_category(category=category, limit=limit)
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", f"Failed to get tokens for category: {category}")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting tokens by category {category}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def endorse_skill_token(self, token_id: str, endorsement_data: str) -> Dict[str, Any]:
+        """
+        Endorse a skill token.
+        
+        Args:
+            token_id: ID of the skill token to endorse
+            endorsement_data: Data describing the endorsement
+            
+        Returns:
+            Dictionary containing the endorsement result.
+        """
+        try:
+            result = await endorse_skill_token(token_id=token_id, endorsement_data=endorsement_data)
+            if not result.success:
+                return {
+                    "success": False,
+                    "error": result.error
+                }
+            
+            # Update database with endorsement
+            # This would typically involve updating an endorsements table
+            # For now, we'll just return the blockchain result
+            
+            return {
+                "success": True,
+                "transaction_id": result.transaction_id,
+                "message": "Skill token endorsed successfully"
+            }
+        except Exception as e:
+            logger.error(f"Error endorsing skill token {token_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def renew_skill_token(self, token_id: str, new_expiry_date: int) -> Dict[str, Any]:
+        """
+        Renew a skill token.
+        
+        Args:
+            token_id: ID of the skill token to renew
+            new_expiry_date: New expiry date as Unix timestamp
+            
+        Returns:
+            Dictionary containing the renewal result.
+        """
+        try:
+            result = await renew_skill_token(token_id=token_id, new_expiry_date=new_expiry_date)
+            if not result.success:
+                return {
+                    "success": False,
+                    "error": result.error
+                }
+            
+            # Update database with new expiry date
+            # This would typically involve updating the skill_tokens table
+            # For now, we'll just return the blockchain result
+            
+            return {
+                "success": True,
+                "transaction_id": result.transaction_id,
+                "message": "Skill token renewed successfully"
+            }
+        except Exception as e:
+            logger.error(f"Error renewing skill token {token_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def revoke_skill_token(self, token_id: str, reason: str) -> Dict[str, Any]:
+        """
+        Revoke a skill token.
+        
+        Args:
+            token_id: ID of the skill token to revoke
+            reason: Reason for revocation
+            
+        Returns:
+            Dictionary containing the revocation result.
+        """
+        try:
+            result = await revoke_skill_token(token_id=token_id, reason=reason)
+            if not result.success:
+                return {
+                    "success": False,
+                    "error": result.error
+                }
+            
+            # Update database with revocation
+            # This would typically involve updating the skill_tokens table
+            # For now, we'll just return the blockchain result
+            
+            return {
+                "success": True,
+                "transaction_id": result.transaction_id,
+                "message": "Skill token revoked successfully"
+            }
+        except Exception as e:
+            logger.error(f"Error revoking skill token {token_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_skill_endorsements(self, token_id: str) -> Dict[str, Any]:
+        """
+        Get endorsements for a skill token.
+        
+        Args:
+            token_id: ID of the skill token
+            
+        Returns:
+            Dictionary containing endorsements.
+        """
+        try:
+            result = await get_skill_endorsements(token_id=token_id)
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", f"Failed to get endorsements for token: {token_id}")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting endorsements for token {token_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def mark_expired_tokens(self, token_ids: List[str]) -> Dict[str, Any]:
+        """
+        Mark skill tokens as expired.
+        
+        Args:
+            token_ids: List of token IDs to mark as expired
+            
+        Returns:
+            Dictionary containing the expiration result.
+        """
+        try:
+            result = await mark_expired_tokens(token_ids=token_ids)
+            if not result.success:
+                return {
+                    "success": False,
+                    "error": result.error
+                }
+            
+            # Update database with expiration
+            # This would typically involve updating the skill_tokens table
+            # For now, we'll just return the blockchain result
+            
+            return {
+                "success": True,
+                "transaction_id": result.transaction_id,
+                "message": f"Successfully marked {len(token_ids)} tokens as expired"
+            }
+        except Exception as e:
+            logger.error(f"Error marking tokens as expired: {str(e)}")
             return {
                 "success": False,
                 "error": str(e)

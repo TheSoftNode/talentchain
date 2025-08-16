@@ -171,6 +171,11 @@ class ResolveChallengeRequest(BaseModel):
             raise ValueError('Invalid resolver address format')
         return v
 
+class UpdateOracleStatusRequest(BaseModel):
+    """Request model for updating oracle status."""
+    is_active: bool = Field(..., description="Whether the oracle should be active")
+    reason: str = Field(..., description="Reason for status change")
+
 # ============ RESPONSE MODELS ============
 
 class OracleRegistrationResponse(BaseModel):

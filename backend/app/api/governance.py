@@ -1291,3 +1291,154 @@ async def get_governance_stats() -> Dict[str, Any]:
             "votes_this_month": 245
         }
     }
+
+@router.get("/proposal/{proposal_id}/status")
+async def get_proposal_status(
+    proposal_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Get proposal status."""
+    try:
+        governance_service = get_governance_service()
+        result = await governance_service.get_proposal_status(proposal_id=proposal_id)
+        return result
+    except Exception as e:
+        logger.error(f"Error getting proposal status: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/proposal/{proposal_id}/vote-receipt/{voter}")
+async def get_vote_receipt(
+    proposal_id: str,
+    voter: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Get vote receipt for a voter on a proposal."""
+    try:
+        governance_service = get_governance_service()
+        result = await governance_service.get_vote_receipt(
+            proposal_id=proposal_id,
+            voter=voter
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error getting vote receipt: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/quorum")
+async def get_quorum(
+    current_user: User = Depends(get_current_user)
+):
+    """Get quorum requirement."""
+    try:
+        governance_service = get_governance_service()
+        result = await governance_service.get_quorum()
+        return result
+    except Exception as e:
+        logger.error(f"Error getting quorum: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/voting-delay")
+async def get_voting_delay(
+    current_user: User = Depends(get_current_user)
+):
+    """Get voting delay."""
+    try:
+        governance_service = get_governance_service()
+        result = await governance_service.get_voting_delay()
+        return result
+    except Exception as e:
+        logger.error(f"Error getting voting delay: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/voting-period")
+async def get_voting_period(
+    current_user: User = Depends(get_current_user)
+):
+    """Get voting period."""
+    try:
+        governance_service = get_governance_service()
+        result = await governance_service.get_voting_period()
+        return result
+    except Exception as e:
+        logger.error(f"Error getting voting period: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/proposal-threshold")
+async def get_proposal_threshold(
+    current_user: User = Depends(get_current_user)
+):
+    """Get proposal threshold."""
+    try:
+        governance_service = get_governance_service()
+        result = await governance_service.get_proposal_threshold()
+        return result
+    except Exception as e:
+        logger.error(f"Error getting proposal threshold: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/proposals/all")
+async def get_all_proposals(
+    current_user: User = Depends(get_current_user)
+):
+    """Get all proposals."""
+    try:
+        governance_service = get_governance_service()
+        result = await governance_service.get_all_proposals()
+        return result
+    except Exception as e:
+        logger.error(f"Error getting all proposals: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/proposals/active")
+async def get_active_proposals(
+    current_user: User = Depends(get_current_user)
+):
+    """Get active proposals."""
+    try:
+        governance_service = get_governance_service()
+        result = await governance_service.get_active_proposals()
+        return result
+    except Exception as e:
+        logger.error(f"Error getting active proposals: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/proposal/{proposal_id}/can-execute")
+async def check_can_execute(
+    proposal_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Check if a proposal can be executed."""
+    try:
+        governance_service = get_governance_service()
+        result = await governance_service.can_execute(proposal_id=proposal_id)
+        return result
+    except Exception as e:
+        logger.error(f"Error checking execution status: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/proposal/{proposal_id}/has-voted/{voter}")
+async def check_has_voted(
+    proposal_id: str,
+    voter: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Check if a voter has voted on a proposal."""
+    try:
+        governance_service = get_governance_service()
+        result = await governance_service.has_voted(
+            proposal_id=proposal_id,
+            voter=voter
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error checking voting status: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

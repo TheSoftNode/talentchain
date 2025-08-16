@@ -35,9 +35,10 @@ except ImportError:
     logger.warning("Database models not available, using fallback functionality")
 
 from app.utils.hedera import (
-    get_contract_manager, create_job_pool, apply_to_pool as hedera_apply_to_pool, 
+    get_contract_manager, create_job_pool, apply_to_pool as hedera_apply_to_pool,
     make_pool_match, get_job_pool_info, select_candidate, complete_pool,
-    close_pool, withdraw_application, calculate_match_score
+    close_pool, withdraw_application, calculate_match_score, get_pool_metrics,
+    get_talent_pool_global_stats, get_active_pools_count, get_total_pools_count
 )
 
 try:
@@ -983,6 +984,97 @@ class TalentPoolService:
             
         except Exception as e:
             logger.error(f"Error calculating match score for pool {pool_id}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_pool_metrics(self, pool_id: str) -> Dict[str, Any]:
+        """
+        Get pool metrics.
+        
+        Args:
+            pool_id: ID of the job pool
+            
+        Returns:
+            Dictionary containing pool metrics.
+        """
+        try:
+            result = await get_pool_metrics(pool_id=pool_id)
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", f"Failed to get metrics for pool {pool_id}")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting pool metrics: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_global_stats(self) -> Dict[str, Any]:
+        """
+        Get global talent pool statistics.
+        
+        Returns:
+            Dictionary containing global stats.
+        """
+        try:
+            result = await get_talent_pool_global_stats()
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", "Failed to get global stats")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting global stats: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_active_pools_count(self) -> Dict[str, Any]:
+        """
+        Get active pools count.
+        
+        Returns:
+            Dictionary containing active pools count.
+        """
+        try:
+            result = await get_active_pools_count()
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", "Failed to get active pools count")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting active pools count: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_total_pools_count(self) -> Dict[str, Any]:
+        """
+        Get total pools count.
+        
+        Returns:
+            Dictionary containing total pools count.
+        """
+        try:
+            result = await get_total_pools_count()
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", "Failed to get total pools count")
+                }
+            return result
+        except Exception as e:
+            logger.error(f"Error getting total pools count: {str(e)}")
             return {
                 "success": False,
                 "error": str(e)
