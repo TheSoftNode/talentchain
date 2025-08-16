@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useSkillTokens } from "@/hooks/useSkillTokens";
 
 // Skill categories for filtering
 const skillCategories = [
@@ -52,66 +53,23 @@ const skillCategories = [
 
 export default function SkillsPage() {
   const { user, isConnected } = useAuth();
-  const [skills, setSkills] = useState<SkillTokenInfo[]>([]);
+  const { skillTokens, isLoading, error, refetch, createSkillToken, updateSkillLevel } = useSkillTokens();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<SkillTokenInfo | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
 
-  // Load user's skill tokens from blockchain
-  useEffect(() => {
-    if (isConnected && user?.accountId) {
-      loadUserSkills();
-    }
-  }, [isConnected, user?.accountId]);
-
-  const loadUserSkills = async () => {
-    if (!user?.accountId) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await apiClient.getSkillTokens(user.accountId);
-
-      if (response.success && response.data) {
-        // Transform API response to match frontend format
-        const transformedSkills = response.data.map((skill: any) => ({
-          tokenId: skill.token_id || skill.id,
-          category: skill.skill_name || skill.category,
-          level: skill.level || 1,
-          uri: skill.metadata_uri || skill.uri || "",
-          owner: skill.owner_address || skill.owner || user.accountId,
-          description: skill.description || "",
-          createdAt: skill.created_at || new Date().toISOString()
-        }));
-        setSkills(transformedSkills);
-      } else {
-        setError(response.error || 'Failed to load skills');
-        setSkills([]);
-      }
-    } catch (err) {
-      console.error('Failed to load skills:', err);
-      setError('Failed to load skills from blockchain');
-      setSkills([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleSkillCreated = async (skillData: any) => {
     // Refresh the skills list after creation
-    await loadUserSkills();
+    await refetch();
     setShowCreateDialog(false);
   };
 
   const handleSkillUpdated = async (skillData: any) => {
     // Refresh the skills list after update
-    await loadUserSkills();
+    await refetch();
     setShowUpdateDialog(false);
   };
 
@@ -126,9 +84,9 @@ export default function SkillsPage() {
   };
 
   // Filter skills based on search and category
-  const filteredSkills = skills.filter(skill => {
+  const filteredSkills = skillTokens.filter(skill => {
     const matchesSearch = skill.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      skill.description.toLowerCase().includes(searchTerm.toLowerCase());
+      (skill.description || "").toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === "all" || skill.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -221,7 +179,7 @@ export default function SkillsPage() {
               <AlertCircle className="w-12 h-12 mx-auto" />
             </div>
             <p className="text-slate-600 dark:text-slate-400 mb-4">{error}</p>
-            <Button onClick={loadUserSkills} variant="outline">
+            <Button onClick={refetch} variant="outline">
               Try Again
             </Button>
           </div>

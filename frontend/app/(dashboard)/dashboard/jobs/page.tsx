@@ -27,16 +27,14 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
+import { useJobPools } from "@/hooks/useDashboardData";
 import { ViewJobDetailsDialog } from "@/components/jobs/view-job-details-dialog";
 import { ContractApplyToJobDialog } from "@/components/jobs/contract-apply-to-job-dialog";
 import { WalletConnectionPrompt } from "@/components/dashboard/wallet-connection-prompt";
-import { apiClient } from "@/lib/api/client";
 
 export default function JobsPage() {
     const { user, isConnected } = useAuth();
-    const [jobs, setJobs] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const { jobPools, isLoading, error, refetch, applyToPool } = useJobPools();
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedType, setSelectedType] = useState("all");
     const [selectedLocation, setSelectedLocation] = useState("all");
@@ -44,66 +42,38 @@ export default function JobsPage() {
     const [showJobDetails, setShowJobDetails] = useState(false);
     const [showApplyDialog, setShowApplyDialog] = useState(false);
 
-    // Load jobs from blockchain
-    useEffect(() => {
-        if (isConnected) {
-            loadJobs();
+    // Transform job pools to match frontend format
+    const transformedJobs = jobPools.map((job: any) => ({
+        id: job.id || job.pool_id,
+        title: job.title,
+        company: job.company || "Company",
+        location: job.location || "Remote",
+        type: job.job_type || "Full-time",
+        salary: job.salary || "$80k - $120k",
+        posted: job.created_at ? new Date(job.created_at).toLocaleDateString() : "Recently",
+        skills: job.required_skills || [],
+        description: job.description,
+        experience: job.experience_level || "3+ years",
+        remote: job.is_remote || false,
+        urgent: job.is_urgent || false,
+        benefits: job.benefits || [],
+        requirements: job.requirements || [],
+        responsibilities: job.responsibilities || [],
+        companyInfo: {
+            description: job.company_description || "Leading company in the industry",
+            size: job.company_size || "100-500 employees",
+            industry: job.industry || "Technology",
+            founded: job.founded_year || "2020",
+            website: job.company_website || "https://company.com",
+            rating: job.company_rating || 4.5,
+            reviews: job.company_reviews || 50
+        },
+        applicationProcess: {
+            steps: job.application_steps || ["Submit application", "Initial screening", "Interview"],
+            timeline: job.application_timeline || "2-3 weeks",
+            nextSteps: job.next_steps || "Applications reviewed within 48 hours"
         }
-    }, [isConnected]);
-
-    const loadJobs = async () => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            const response = await apiClient.getJobPools(1, 20);
-
-            if (response.success && response.data) {
-                // Transform API response to match frontend format
-                const transformedJobs = response.data.items.map((job: any) => ({
-                    id: job.pool_id || job.id,
-                    title: job.title,
-                    company: job.company_name || "Company",
-                    location: job.location || "Remote",
-                    type: job.job_type || "Full-time",
-                    salary: job.salary_range || "$80k - $120k",
-                    posted: job.created_at ? new Date(job.created_at).toLocaleDateString() : "Recently",
-                    skills: job.required_skills || [],
-                    description: job.description,
-                    experience: job.experience_level || "3+ years",
-                    remote: job.is_remote || false,
-                    urgent: job.is_urgent || false,
-                    benefits: job.benefits || [],
-                    requirements: job.requirements || [],
-                    responsibilities: job.responsibilities || [],
-                    companyInfo: {
-                        description: job.company_description || "Leading company in the industry",
-                        size: job.company_size || "100-500 employees",
-                        industry: job.industry || "Technology",
-                        founded: job.founded_year || "2020",
-                        website: job.company_website || "https://company.com",
-                        rating: job.company_rating || 4.5,
-                        reviews: job.company_reviews || 50
-                    },
-                    applicationProcess: {
-                        steps: job.application_steps || ["Submit application", "Initial screening", "Interview"],
-                        timeline: job.application_timeline || "2-3 weeks",
-                        nextSteps: job.next_steps || "Applications reviewed within 48 hours"
-                    }
-                }));
-                setJobs(transformedJobs);
-            } else {
-                setError(response.error || 'Failed to load jobs');
-                setJobs([]);
-            }
-        } catch (err) {
-            console.error('Failed to load jobs:', err);
-            setError('Failed to load jobs from blockchain');
-            setJobs([]);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    }));
 
     const handleViewJob = (job: any) => {
         setSelectedJob(job);
@@ -117,12 +87,12 @@ export default function JobsPage() {
 
     const handleApplicationSubmitted = async () => {
         // Refresh jobs list after application
-        await loadJobs();
+        await refetch();
         setShowApplyDialog(false);
     };
 
     // Filter jobs based on search and filters
-    const filteredJobs = jobs.filter(job => {
+    const filteredJobs = transformedJobs.filter(job => {
         const matchesSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
             job.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
             job.description.toLowerCase().includes(searchTerm.toLowerCase());
@@ -223,7 +193,7 @@ export default function JobsPage() {
                             <Briefcase className="w-12 h-12 mx-auto" />
                         </div>
                         <p className="text-slate-600 dark:text-slate-400 mb-4">{error}</p>
-                        <Button onClick={loadJobs} variant="outline">
+                        <Button onClick={refetch} variant="outline">
                             Try Again
                         </Button>
                     </div>
@@ -239,7 +209,7 @@ export default function JobsPage() {
                                 : "No job opportunities available at the moment"}
                         </p>
                         {!searchTerm && selectedType === "all" && selectedLocation === "all" && (
-                            <Button onClick={loadJobs} variant="outline">
+                            <Button onClick={refetch} variant="outline">
                                 Refresh Jobs
                             </Button>
                         )}
@@ -354,17 +324,38 @@ export default function JobsPage() {
             {/* Dialogs */}
             {selectedJob && (
                 <>
+                    {/* Job Details Dialog */}
                     <ViewJobDetailsDialog
-                        open={showJobDetails}
-                        onOpenChange={setShowJobDetails}
                         job={selectedJob}
+                        triggerButton={
+                            <Button variant="outline" size="sm">
+                                View Details
+                            </Button>
+                        }
                     />
 
+                    {/* Apply to Job Dialog */}
                     <ContractApplyToJobDialog
-                        open={showApplyDialog}
-                        onOpenChange={setShowApplyDialog}
-                        job={selectedJob}
+                        jobPool={{
+                            id: selectedJob?.id || 0,
+                            title: selectedJob?.title || "",
+                            company: selectedJob?.company || "",
+                            jobType: 0, // Default to full-time
+                            requiredSkills: selectedJob?.skills || [],
+                            minimumLevels: selectedJob?.skills.map(() => 1) || [],
+                            salaryMin: 0,
+                            salaryMax: 0,
+                            deadline: Date.now() + 30 * 24 * 60 * 60 * 1000,
+                            location: selectedJob?.location || "Remote",
+                            isRemote: selectedJob?.remote || false,
+                            description: selectedJob?.description || ""
+                        }}
                         onApplicationSubmitted={handleApplicationSubmitted}
+                        triggerButton={
+                            <Button variant="default" size="sm">
+                                Apply Now
+                            </Button>
+                        }
                     />
                 </>
             )}
