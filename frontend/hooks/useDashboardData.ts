@@ -7,7 +7,6 @@ import {
   DashboardStats,
   SkillTokenInfo,
   JobPoolInfo,
-  ApiResponse,
   TransactionResult
 } from '@/lib/types/wallet';
 import { apiClient } from '@/lib/api/client';

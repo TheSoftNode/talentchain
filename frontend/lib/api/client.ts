@@ -232,24 +232,32 @@ export class TalentChainApiClient {
     // Authentication Methods
     setAuthToken(token: string) {
         this.authToken = token;
-        localStorage.setItem('talentchain_auth_token', token);
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('talentchain_auth_token', token);
+        }
     }
 
     setWalletAddress(address: string) {
         this.walletAddress = address;
-        localStorage.setItem('talentchain_wallet_address', address);
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('talentchain_wallet_address', address);
+        }
     }
 
     clearAuth() {
         this.authToken = null;
         this.walletAddress = null;
-        localStorage.removeItem('talentchain_auth_token');
-        localStorage.removeItem('talentchain_wallet_address');
+        if (typeof window !== 'undefined') {
+            localStorage.removeItem('talentchain_auth_token');
+            localStorage.removeItem('talentchain_wallet_address');
+        }
     }
 
     private loadAuthFromStorage() {
-        this.authToken = localStorage.getItem('talentchain_auth_token');
-        this.walletAddress = localStorage.getItem('talentchain_wallet_address');
+        if (typeof window !== 'undefined') {
+            this.authToken = localStorage.getItem('talentchain_auth_token');
+            this.walletAddress = localStorage.getItem('talentchain_wallet_address');
+        }
     }
 
     // Request Helper Methods

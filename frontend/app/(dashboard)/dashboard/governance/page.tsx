@@ -28,10 +28,8 @@ import {
 import { apiClient } from '@/lib/api/client';
 import {
     GovernanceProposal,
-    EmergencyProposal,
     VoteRecord,
     GovernanceMetrics,
-    GovernanceSettings,
     CreateProposalRequest
 } from '@/lib/api/client';
 import { formatDistanceToNow, format } from 'date-fns';
