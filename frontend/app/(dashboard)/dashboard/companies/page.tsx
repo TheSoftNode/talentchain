@@ -211,7 +211,7 @@ export default function CompaniesPage() {
 
     return (
         <div className="w-full">
-            <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
+            <div className="">
                 {/* Header */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
